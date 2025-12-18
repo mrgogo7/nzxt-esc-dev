@@ -1,12 +1,11 @@
 // Render model type definitions
 
+import type { BackgroundRenderModel } from '../../core/background/base/background.base.types';
+
 /**
- * FAZ-0 minimal render model.
+ * Minimal render model.
  * Represents the complete visual state to be rendered.
  */
 export interface RenderModel {
-  background: {
-    kind: 'color';
-    color: string; // rgba(...) for solid colors, or linear-gradient(...)/radial-gradient(...) for gradients
-  };
+  background: BackgroundRenderModel;
 }

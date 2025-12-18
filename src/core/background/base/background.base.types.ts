@@ -13,3 +13,17 @@ export type BackgroundSourceType = 'color' | 'media-url' | 'youtube' | 'pinteres
 export interface BaseBackgroundConfig {
   sourceType: BackgroundSourceType;
 }
+
+/**
+ * Resolved background model passed into the render layer.
+ * FAZ-2 only supports a color/gradient base layer.
+ */
+export interface BackgroundRenderModel {
+  kind: 'color';
+  /**
+   * CSS color string:
+   * - rgba(...) for solid colors
+   * - linear-gradient(...)/radial-gradient(...) for gradients
+   */
+  color: string;
+}

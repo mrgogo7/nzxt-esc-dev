@@ -2,6 +2,12 @@
 
 import type { RenderModel } from './model/render.types';
 import type { ViewportDimensions } from './viewport';
+import type { Preset } from '../core/preset/preset.types';
+import type {
+  BackgroundRenderModel,
+  BackgroundSourceType,
+} from '../core/background/base/background.base.types';
+import { getBackgroundContract } from '../core/background/registry';
 
 /**
  * CSS style properties for rendering.
@@ -9,6 +15,15 @@ import type { ViewportDimensions } from './viewport';
 export interface CSSStyleProperties {
   [key: string]: string | number | undefined;
 }
+
+const DEFAULT_BACKGROUND: BackgroundRenderModel = {
+  kind: 'color',
+  color: '#000000',
+};
+
+const DEFAULT_RENDER_MODEL: RenderModel = {
+  background: DEFAULT_BACKGROUND,
+};
 
 /**
  * Renders the background circle with the given color or gradient.
@@ -50,22 +65,41 @@ export function renderBackground(
 }
 
 /**
- * Converts a preset to a render model.
+ * Converts a preset to a render model using the background contract registry.
+ * This function is source-agnostic and delegates to background contracts.
  */
-export function presetToRenderModel(preset: { background: { sourceType: string; color: string } }): RenderModel {
-  if (preset.background.sourceType === 'color') {
-    return {
-      background: {
-        kind: 'color',
-        color: preset.background.color,
-      },
-    };
+export function presetToRenderModel(preset: Preset): RenderModel {
+  const background = preset?.background;
+
+  if (!background || typeof background !== 'object') {
+    return DEFAULT_RENDER_MODEL;
   }
 
-  return {
-    background: {
-      kind: 'color',
-      color: '#000000',
-    },
-  };
+  const sourceType = (background as { sourceType?: string }).sourceType as
+    | BackgroundSourceType
+    | undefined;
+
+  if (!sourceType) {
+    return DEFAULT_RENDER_MODEL;
+  }
+
+  const contract = getBackgroundContract(sourceType);
+  if (!contract) {
+    return DEFAULT_RENDER_MODEL;
+  }
+
+  try {
+    const normalized = contract.normalize(background as any);
+    if (!contract.validate(normalized)) {
+      return DEFAULT_RENDER_MODEL;
+    }
+
+    const resolved: BackgroundRenderModel = contract.toRenderModel(normalized as any);
+
+    return {
+      background: resolved,
+    };
+  } catch {
+    return DEFAULT_RENDER_MODEL;
+  }
 }
