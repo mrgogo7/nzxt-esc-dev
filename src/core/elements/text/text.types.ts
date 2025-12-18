@@ -1,0 +1,2 @@
+// Text element type definitions
+

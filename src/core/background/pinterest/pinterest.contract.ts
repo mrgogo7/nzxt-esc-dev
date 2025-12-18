@@ -1,0 +1,2 @@
+// Pinterest background contract
+

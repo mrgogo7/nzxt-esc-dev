@@ -1,0 +1,50 @@
+/* Root layout ownership and body behavior */
+
+/* Reset body defaults */
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: black;
+}
+
+/* Root container */
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* App root - mode-aware */
+.app-root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Config mode - neutral background */
+.app-root.config {
+  background-color: #0c0c10;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Kraken mode - body becomes LCD surface */
+.app-root.kraken {
+  background-color: #000000;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Kraken mode body background is set via CSS variable */
+body.kraken-mode {
+  background-color: var(--kraken-bg-color, #000000);
+  transition: background-color 0.1s ease;
+}
+

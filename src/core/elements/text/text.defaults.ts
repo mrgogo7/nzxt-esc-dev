@@ -1,0 +1,2 @@
+// Default text element configurations
+

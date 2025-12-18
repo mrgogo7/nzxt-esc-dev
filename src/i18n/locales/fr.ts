@@ -1,0 +1,92 @@
+// French translations
+
+export const fr = {
+  // Common
+  loading: 'Chargement...',
+
+  // Modal (infrastructure placeholder)
+  modalPlaceholderTitle: 'Modal',
+  modalPlaceholderBody: 'Ceci est une fenêtre modale de test.',
+  modalClose: 'Fermer',
+
+  // Language names (for selector)
+  languageEnglish: 'English',
+  languageTurkish: 'Türkçe',
+  languageSpanish: 'Español',
+  languageGerman: 'Deutsch',
+  languagePortuguese: 'Português',
+  languageFrench: 'Français',
+  languageItalian: 'Italiano',
+  languageJapanese: '日本語',
+
+  // Preset Manager
+  presetManager: 'Gestionnaire de Presets',
+  presetManagerButton: 'Gestionnaire de Presets',
+  createPreset: 'Créer un Preset',
+  export: 'Exporter',
+  import: 'Importer',
+  duplicate: 'Dupliquer',
+  active: 'Actif',
+  noPresetsAvailable: 'Aucun preset disponible',
+
+  // Preset Delete Confirmation Modal
+  presetDeleteConfirmTitle: 'Supprimer le Preset',
+  presetDeleteConfirmBody:
+    'Êtes-vous sûr de vouloir supprimer "{presetName}"? Cette action ne peut pas être annulée.',
+  presetDeleteConfirmConfirm: 'Supprimer',
+  presetDeleteConfirmCancel: 'Annuler',
+
+  // Preset Import Conflict Modal
+  presetImportConflictTitle: 'Le Preset Existe Déjà',
+  presetImportConflictBody:
+    'Un preset nommé "{importedPresetName}" existe déjà. Comment souhaitez-vous procéder?',
+  presetImportConflictOverwrite: 'Remplacer',
+  presetImportConflictRename: 'Renommer',
+  presetImportConflictRenameLabel: 'Nouveau nom:',
+  presetImportConflictCancel: 'Annuler',
+
+  // Preset Import Errors
+  presetImportErrorInvalidFile:
+    'Fichier de preset invalide. Veuillez sélectionner un fichier .nzxtesc-preset valide.',
+  presetImportErrorUnsupportedVersion:
+    'Version de format de preset non prise en charge. Ce fichier a été créé avec une version plus récente de l\'application.',
+
+  // Preset Rename Modal
+  presetRenameTitle: 'Renommer le Preset',
+  presetRenameBody: 'Entrez un nouveau nom pour ce preset.',
+  presetRenameConfirm: 'Renommer',
+  presetRenameCancel: 'Annuler',
+
+  // Preset Export Modal
+  presetExportTitle: 'Exporter le Preset',
+  presetExportBody: 'Entrez un nom pour le fichier de preset exporté.',
+  presetExportLabel: 'Nom d\'exportation:',
+  presetExportConfirm: 'Exporter',
+  presetExportCancel: 'Annuler',
+
+  // Preset Create Modal
+  presetCreateTitle: 'Créer un Preset',
+  presetCreateBody: 'Entrez un nom pour le nouveau preset.',
+  presetCreateLabel: 'Nom du preset:',
+  presetCreateConfirm: 'Créer',
+  presetCreateCancel: 'Annuler',
+
+  // Tooltip texts
+  'tooltip.preset.create': 'Créer un Preset',
+  'tooltip.preset.export': 'Exporter',
+  'tooltip.preset.import': 'Importer',
+  'tooltip.preset.delete': 'Supprimer',
+  'tooltip.preset.duplicate': 'Dupliquer',
+  'tooltip.preset.rename': 'Renommer',
+  'tooltip.preset.apply': 'Appliquer',
+  'tooltip.preset.reorder': 'Glisser pour réorganiser',
+  'tooltip.preset.favorite.add': 'Ajouter aux favoris',
+  'tooltip.preset.favorite.remove': 'Retirer des favoris',
+  'tooltip.preset.quickApply': 'Appliquer rapidement',
+  'tooltip.presetManager': 'Gestionnaire de Presets',
+  'tooltip.languageSelector': 'Sélectionner la langue',
+
+  // Background Settings
+  backgroundSettingsTitle: 'Paramètres d’arrière-plan',
+  backgroundColorLabel: 'Couleur d’arrière-plan',
+} as const;

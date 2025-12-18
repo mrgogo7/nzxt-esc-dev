@@ -1,0 +1,15 @@
+/* Background rendering styles */
+
+.render-background {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.render-background-circle {
+  border-radius: 50%;
+  border: 14px solid #000;
+  box-sizing: border-box;
+}

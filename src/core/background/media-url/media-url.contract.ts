@@ -1,0 +1,2 @@
+// Media URL background contract
+

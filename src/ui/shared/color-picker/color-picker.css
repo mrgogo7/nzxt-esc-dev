@@ -1,0 +1,9 @@
+/* Custom styles for react-best-gradient-color-picker */
+/* Override preset color wrapper styles for more compact layout */
+
+/* Preset color item wrapper - override inline styles */
+/* Target wrapper divs that contain individual preset colors */
+.unified-color-picker-wrapper [id*="rbgcp-preset-"][id*="-wrapper"] {
+  width: calc(10%) !important;
+  padding-left: 2px !important;
+}

@@ -1,0 +1,2 @@
+// YouTube background type definitions
+
