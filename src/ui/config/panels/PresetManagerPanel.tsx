@@ -5,8 +5,8 @@ import { useTranslation } from '../../../i18n';
 import { loadActivePresetState, saveActivePresetState } from '../../../storage/local';
 import type { Preset, ActivePresetState } from '../../../core/preset/preset.types';
 import { useModal } from '../../shared/modal/modal.context';
-import { createPresetExportMetadata } from '../../../storage/preset/exportPreset';
-import { importPresetFromJson } from '../../../storage/preset/importPreset';
+import { exportPresetV2 } from '../../../storage/preset/exportPresetV2';
+import { importPresetV2 } from '../../../storage/preset/importPresetV2';
 import {
   addPreset,
   deletePreset,
@@ -21,6 +21,9 @@ import {
 import { PresetIcons } from '../../icons';
 import { Tooltip } from '../../shared/tooltip';
 import { usePresetDragOrder } from './preset-order/usePresetDragOrder';
+import { presetToRenderModel } from '../../../render/engine';
+import { sessionBus } from '../../../sync/sessionBus';
+import { localMediaResolver } from '../../../storage/localMediaResolver';
 
 const CheckIcon = PresetIcons.check;
 
@@ -147,41 +150,91 @@ export function PresetManagerPanel({
         confirmLabelKey: 'presetExportConfirm',
         cancelLabelKey: 'presetExportCancel',
         defaultName: activePreset.name,
-        onConfirm: (exportName: string) => {
-          const exportMeta = createPresetExportMetadata(activePreset);
-          const baseName = exportName.trim() || activePreset.name;
-          const safeName =
-            baseName
-              .replace(/[<>:\"/\\|?*]/g, '_')
-              .replace(/\s+/g, '_')
-              .trim() || 'preset';
+        onConfirm: async (exportName: string) => {
+          try {
+            const exportData = await exportPresetV2(activePreset.id);
+            const baseName = exportName.trim() || activePreset.name;
+            const safeName =
+              baseName
+                .replace(/[<>:\"/\\|?*]/g, '_')
+                .replace(/\s+/g, '_')
+                .trim() || 'preset';
 
-          const filename = `${safeName}.nzxtesc-preset`;
+            const filename = `${safeName}.nzxt-esc-preset.v2.json`;
+            const content = JSON.stringify(exportData, null, 2);
 
-          const blob = new Blob([exportMeta.content], {
-            type: exportMeta.mimeType,
-          });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = filename;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(url);
+            const blob = new Blob([content], {
+              type: 'application/json',
+            });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+          } catch (error) {
+            console.error('Export failed:', error);
+            alert(t('presetImportErrorInvalidFile')); // Reuse existing translation key
+          }
         },
       },
     });
-  }, [activePresetId, openModal, presetState]);
+  }, [activePresetId, openModal, presetState, t]);
 
   // Import handler: trigger file input
   const handleImport = React.useCallback(() => {
     fileInputRef.current?.click();
   }, []);
 
+  // Helper: Create resolved render input and publish to sessionBus
+  // (Same logic as ConfigApp.createResolvedRenderInput)
+  const applyPresetAndPublish = React.useCallback(
+    async (preset: Preset) => {
+      const overlay = preset.background.mediaOverlay;
+
+      // If no overlay or not local media, use preset as-is
+      let resolvedPreset = preset;
+      if (overlay && overlay.source === 'local' && overlay.media.mediaId) {
+        // Resolve mediaId to objectURL
+        const objectURL = await localMediaResolver.resolveMediaId(overlay.media.mediaId);
+
+        if (objectURL) {
+          resolvedPreset = {
+            ...preset,
+            background: {
+              ...preset.background,
+              mediaOverlay: {
+                ...overlay,
+                media: {
+                  ...overlay.media,
+                  mediaId: objectURL, // Replace stable ID with objectURL for render
+                },
+              },
+            },
+          };
+        } else {
+          // Resolution failed: remove overlay for render
+          resolvedPreset = {
+            ...preset,
+            background: {
+              ...preset.background,
+              mediaOverlay: undefined,
+            },
+          };
+        }
+      }
+
+      const renderModel = presetToRenderModel(resolvedPreset);
+      sessionBus.publishActivePreset(renderModel);
+    },
+    []
+  );
+
   // File input change handler
   const handleFileChange = React.useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
 
@@ -192,12 +245,12 @@ export function PresetManagerPanel({
 
       // Read file as text
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         const text = e.target?.result;
         if (typeof text !== 'string') return;
 
-        // Import preset
-        const result = importPresetFromJson(text);
+        // Import preset (v2)
+        const result = await importPresetV2(text);
 
         if (result.kind === 'invalidFormat') {
           alert(t('presetImportErrorInvalidFile'));
@@ -211,10 +264,33 @@ export function PresetManagerPanel({
 
         if (!presetState) return;
 
+        // Check for missing media or failures (show non-blocking warning)
+        const hasMediaIssues =
+          result.missingMediaIds.length > 0 ||
+          Array.from(result.restoredMedia.values()).some((status) => status === 'failed');
+
         // Check for name conflict
         const existingPreset = Object.values(presetState.presets).find(
           (p) => p.name === result.preset.name
         );
+
+        const handleImportComplete = async (finalPreset: Preset, finalPresetId: string, finalState: ActivePresetState) => {
+          // Set as active and save
+          const stateWithActive = setActivePreset(finalState, finalPresetId);
+          saveActivePresetState(stateWithActive);
+          refreshPresetState();
+
+          // Publish to Kraken (resolve local media and publish render model)
+          await applyPresetAndPublish(finalPreset);
+
+          // Show media warning if needed (non-blocking)
+          if (hasMediaIssues) {
+            // Use setTimeout to ensure modal/alert appears after state update
+            setTimeout(() => {
+              alert(t('presetImportErrorInvalidFile')); // Reuse existing key for now
+            }, 100);
+          }
+        };
 
         if (existingPreset) {
           // Open conflict modal
@@ -229,32 +305,29 @@ export function PresetManagerPanel({
               existingPresetId: existingPreset.id,
               existingPresetName: existingPreset.name,
               importedPresetName: result.preset.name,
-              onOverwrite: () => {
+              onOverwrite: async () => {
                 const newState = overwritePresetContent(presetState, existingPreset.id, result.preset);
                 if (newState) {
-                  saveActivePresetState(newState);
-                  refreshPresetState();
+                  await handleImportComplete(result.preset, existingPreset.id, newState);
                 }
               },
-              onRename: (newName: string) => {
+              onRename: async (newName: string) => {
                 const renamedPreset = { ...result.preset, name: newName.trim() || result.preset.name };
                 const newState = addPreset(presetState, renamedPreset);
-                saveActivePresetState(newState);
-                refreshPresetState();
+                await handleImportComplete(renamedPreset, renamedPreset.id, newState);
               },
             },
           });
         } else {
           // No conflict: add preset
           const newState = addPreset(presetState, result.preset);
-          saveActivePresetState(newState);
-          refreshPresetState();
+          await handleImportComplete(result.preset, result.preset.id, newState);
         }
       };
 
       reader.readAsText(file);
     },
-    [presetState, t, openModal, refreshPresetState]
+    [presetState, t, openModal, refreshPresetState, applyPresetAndPublish]
   );
 
   // Delete handler
@@ -477,7 +550,7 @@ export function PresetManagerPanel({
         <input
           ref={fileInputRef}
           type="file"
-          accept=".nzxtesc-preset"
+          accept=".nzxtesc-preset,.json"
           className="preset-manager-file-input"
           aria-label={t('import')}
           onChange={handleFileChange}
