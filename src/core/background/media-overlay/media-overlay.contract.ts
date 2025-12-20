@@ -88,7 +88,29 @@ export const mediaOverlayContract: MediaOverlayContract = {
 
     const overlay = config as BackgroundMediaOverlayConfig;
     const primitive = resolvePrimitive(overlay.media);
-    return primitive !== null;
+    if (primitive === null) {
+      return false;
+    }
+
+    // FAZ-4: Validate transform values are finite and scale/autoScale > 0
+    const transform = overlay.transform;
+    if (transform) {
+      if (
+        !Number.isFinite(transform.scale) ||
+        !Number.isFinite(transform.autoScale) ||
+        !Number.isFinite(transform.offsetX) ||
+        !Number.isFinite(transform.offsetY) ||
+        !Number.isFinite(transform.rotateDeg)
+      ) {
+        return false;
+      }
+
+      if (transform.scale <= 0 || transform.autoScale <= 0) {
+        return false;
+      }
+    }
+
+    return true;
   },
 
   normalize(config: Partial<BackgroundMediaOverlayConfig>): BackgroundMediaOverlayConfig {
@@ -107,6 +129,22 @@ export const mediaOverlayContract: MediaOverlayContract = {
         throw new Error('Invalid media overlay config: missing local media');
       }
 
+      // FAZ-4.1: Normalize intrinsic if present
+      let intrinsic: { width: number; height: number } | undefined;
+      if (media.intrinsic) {
+        const i = media.intrinsic;
+        if (
+          typeof i.width === 'number' &&
+          Number.isFinite(i.width) &&
+          i.width > 0 &&
+          typeof i.height === 'number' &&
+          Number.isFinite(i.height) &&
+          i.height > 0
+        ) {
+          intrinsic = { width: i.width, height: i.height };
+        }
+      }
+
       const overlay: LocalBackgroundMediaOverlayConfig = {
         kind,
         source: 'local',
@@ -116,6 +154,7 @@ export const mediaOverlayContract: MediaOverlayContract = {
           fileType: media.fileType,
           fileSize: media.fileSize,
           mediaId: media.mediaId,
+          ...(intrinsic && { intrinsic }),
         },
         transform: (c as any).transform,
       };
@@ -129,12 +168,29 @@ export const mediaOverlayContract: MediaOverlayContract = {
         throw new Error('Invalid media overlay config: missing URL media');
       }
 
+      // FAZ-4.1: Normalize intrinsic if present
+      let intrinsic: { width: number; height: number } | undefined;
+      if (media.intrinsic) {
+        const i = media.intrinsic;
+        if (
+          typeof i.width === 'number' &&
+          Number.isFinite(i.width) &&
+          i.width > 0 &&
+          typeof i.height === 'number' &&
+          Number.isFinite(i.height) &&
+          i.height > 0
+        ) {
+          intrinsic = { width: i.width, height: i.height };
+        }
+      }
+
       const overlay: UrlBackgroundMediaOverlayConfig = {
         kind,
         source: 'url',
         media: {
           type: 'url',
           url: media.url,
+          ...(intrinsic && { intrinsic }),
         },
         transform: (c as any).transform,
       };
@@ -165,6 +221,7 @@ export const mediaOverlayContract: MediaOverlayContract = {
       source: config.source,
       src,
       transform: config.transform,
+      intrinsic: config.media.intrinsic,
     };
   },
 };

@@ -122,4 +122,10 @@ export const en = {
   backgroundMediaMenuCopy: 'Copy',
   backgroundMediaMenuPaste: 'Paste',
   backgroundMediaMenuSelectAll: 'Select All',
+  backgroundMediaTransformScale: 'Resize',
+  backgroundMediaTransformRotate: 'Rotate',
+  backgroundMediaTransformOffsetX: 'X Offset',
+  backgroundMediaTransformOffsetY: 'Y Offset',
+  backgroundMediaTransformReset: 'Reset',
+  backgroundMediaOverlayGuides: 'Overlay Guides',
 } as const;

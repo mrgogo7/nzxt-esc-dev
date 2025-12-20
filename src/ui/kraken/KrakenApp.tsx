@@ -147,21 +147,32 @@ export function KrakenApp(): JSX.Element {
         >
           {overlay && (
             <div className="render-media-overlay">
-              {overlay.primitive === 'image' ? (
-                <img
-                  className="render-media-overlay-media"
-                  src={overlay.src}
-                  alt=""
-                />
-              ) : (
-                <video
-                  className="render-media-overlay-media"
-                  src={overlay.src}
-                  autoPlay
-                  loop
-                  muted
-                />
-              )}
+              <div
+                className="render-media-world"
+                style={{
+                  width: `${overlay.worldWidth}px`,
+                  height: `${overlay.worldHeight}px`,
+                  marginLeft: `-${overlay.worldWidth / 2}px`,
+                  marginTop: `-${overlay.worldHeight / 2}px`,
+                  transform: overlay.worldTransform,
+                }}
+              >
+                {overlay.primitive === 'image' ? (
+                  <img
+                    className="render-media-overlay-media"
+                    src={overlay.src}
+                    alt=""
+                  />
+                ) : (
+                  <video
+                    className="render-media-overlay-media"
+                    src={overlay.src}
+                    autoPlay
+                    loop
+                    muted
+                  />
+                )}
+              </div>
             </div>
           )}
         </div>

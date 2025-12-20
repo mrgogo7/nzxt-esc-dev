@@ -1,6 +1,6 @@
 // Configuration Browser application entry point
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { loadActivePresetState, savePreset } from '../../storage/local';
 import { sessionBus } from '../../sync/sessionBus';
 import { presetToRenderModel } from '../../render/engine';
@@ -14,6 +14,7 @@ import { PresetManagerPanel } from './panels/PresetManagerPanel';
 import { ConfigHeader } from './layout/ConfigHeader';
 import { localMediaResolver } from '../../storage/localMediaResolver';
 import { createDefaultPreset } from '../../core/preset/preset.defaults';
+import { getViewportDimensions } from '../../render/viewport';
 import '../../render/styles/background.css';
 import '../../render/styles/overlay.css';
 import '../../styles/config.css';
@@ -70,6 +71,8 @@ export function ConfigApp(): JSX.Element {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isPresetManagerOpen, setIsPresetManagerOpen] = useState(false);
   const { openModal } = useModal();
+  const autoscaleComputedRef = useRef<Set<string>>(new Set());
+  const [showOverlayGuides, setShowOverlayGuides] = useState(false);
 
   useEffect(() => {
     const initialize = async () => {
@@ -247,6 +250,158 @@ export function ConfigApp(): JSX.Element {
     });
   }, [openModal, preset, handleBackgroundMediaOverlayRemove]);
 
+  // Handle transform change
+  const handleTransformChange = useCallback(
+    async (transform: BackgroundMediaOverlayConfig['transform']) => {
+      if (!preset || !preset.background.mediaOverlay) {
+        return;
+      }
+
+      const updatedPreset: Preset = {
+        ...preset,
+        background: {
+          ...preset.background,
+          mediaOverlay: {
+            ...preset.background.mediaOverlay,
+            transform,
+          },
+        },
+      };
+
+      setPreset(updatedPreset);
+      savePreset(updatedPreset);
+
+      // Update render model
+      const resolvedPreset = await createResolvedRenderInput(updatedPreset);
+      const renderModel = presetToRenderModel(resolvedPreset);
+      setResolvedRenderModel(renderModel);
+      sessionBus.publishActivePreset(renderModel);
+    },
+    [preset]
+  );
+
+  // Handle intrinsic size available (autoscale computation + intrinsic persistence)
+  const handleIntrinsicSizeAvailable = useCallback(
+    async (width: number, height: number) => {
+      if (!preset || !preset.background.mediaOverlay) {
+        return;
+      }
+
+      const overlay = preset.background.mediaOverlay;
+      const transform = overlay.transform;
+
+      // Get media source identifier for tracking
+      const mediaId =
+        overlay.source === 'local' ? overlay.media.mediaId : overlay.media.url;
+      const mediaKey = `${overlay.source}:${mediaId}`;
+
+      // Check if autoscale already computed for this media
+      if (autoscaleComputedRef.current.has(mediaKey)) {
+        // Still persist intrinsic even if autoscale was already computed
+        // (in case it wasn't persisted before)
+        if (!overlay.media.intrinsic || overlay.media.intrinsic.width !== width || overlay.media.intrinsic.height !== height) {
+          const updatedPreset: Preset = {
+            ...preset,
+            background: {
+              ...preset.background,
+              mediaOverlay: {
+                ...overlay,
+                media: {
+                  ...overlay.media,
+                  intrinsic: { width, height },
+                },
+              },
+            },
+          };
+
+          setPreset(updatedPreset);
+          savePreset(updatedPreset);
+
+          const resolvedPreset = await createResolvedRenderInput(updatedPreset);
+          const renderModel = presetToRenderModel(resolvedPreset);
+          setResolvedRenderModel(renderModel);
+          sessionBus.publishActivePreset(renderModel);
+        }
+        return;
+      }
+
+      // Check if user has customized transform
+      const isDefaultTransform =
+        transform.scale === 1 &&
+        transform.autoScale === 1 &&
+        transform.offsetX === 0 &&
+        transform.offsetY === 0 &&
+        transform.rotateDeg === 0;
+
+      // Compute autoscale cover
+      const viewport = getViewportDimensions();
+      const autoScaleCover = Math.max(
+        viewport.width / width,
+        viewport.height / height
+      );
+
+      // FAZ-4.2.1: Autoscale is baked into world dimensions, not transform.scale
+      // When autoscale is computed:
+      // - autoScale = autoScaleCover (stored as reference)
+      // - scale = 1 (user scale starts at 1, autoscale already applied to world)
+      // - World size will be: intrinsic * autoScale (computed in render layer)
+      const updatedPreset: Preset = {
+        ...preset,
+        background: {
+          ...preset.background,
+          mediaOverlay: {
+            ...overlay,
+            media: {
+              ...overlay.media,
+              intrinsic: { width, height },
+            },
+            transform: isDefaultTransform
+              ? {
+                  ...transform,
+                  autoScale: autoScaleCover,
+                  scale: 1, // User scale = 1 initially (autoscale baked into world size)
+                }
+              : transform,
+          },
+        },
+      };
+
+      setPreset(updatedPreset);
+      savePreset(updatedPreset);
+
+      // Mark as computed
+      autoscaleComputedRef.current.add(mediaKey);
+
+      // Update render model
+      const resolvedPreset = await createResolvedRenderInput(updatedPreset);
+      const renderModel = presetToRenderModel(resolvedPreset);
+      setResolvedRenderModel(renderModel);
+      sessionBus.publishActivePreset(renderModel);
+    },
+    [preset]
+  );
+
+  // Reset autoscale tracking when media source changes
+  useEffect(() => {
+    if (!preset?.background.mediaOverlay) {
+      autoscaleComputedRef.current.clear();
+      return;
+    }
+
+    const overlay = preset.background.mediaOverlay;
+    const mediaId =
+      overlay.source === 'local' ? overlay.media.mediaId : overlay.media.url;
+    const mediaKey = `${overlay.source}:${mediaId}`;
+
+    // If media changed, clear tracking for old media
+    const currentKeys = Array.from(autoscaleComputedRef.current);
+    for (const key of currentKeys) {
+      if (key !== mediaKey) {
+        autoscaleComputedRef.current.delete(key);
+      }
+    }
+  }, [preset?.background.mediaOverlay]);
+
   if (!isInitialized || !preset) {
     return (
       <div className="config-root">
@@ -264,7 +419,11 @@ export function ConfigApp(): JSX.Element {
       <div className="config-content">
         <div className="config-sidebar">
           <div className="config-preview">
-            <BackgroundPreview model={resolvedRenderModel} />
+            <BackgroundPreview
+              model={resolvedRenderModel}
+              onIntrinsicSizeAvailable={handleIntrinsicSizeAvailable}
+              showOverlayGuides={showOverlayGuides}
+            />
           </div>
         </div>
         <div className="background-panel">
@@ -274,6 +433,10 @@ export function ConfigApp(): JSX.Element {
             hasMediaOverlay={Boolean(preset.background.mediaOverlay)}
             onOpenBackgroundMediaModal={handleOpenBackgroundMediaModal}
             onRemoveBackgroundMediaOverlay={handleConfirmRemoveBackgroundMedia}
+            transform={preset.background.mediaOverlay?.transform}
+            onTransformChange={handleTransformChange}
+            showOverlayGuides={showOverlayGuides}
+            onOverlayGuidesChange={setShowOverlayGuides}
           />
         </div>
       </div>

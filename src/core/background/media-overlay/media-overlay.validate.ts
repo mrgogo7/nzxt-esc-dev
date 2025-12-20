@@ -14,6 +14,8 @@ import type {
  *
  * This is a SHAPE check used by storage layer; it does not
  * enforce semantic ranges.
+ *
+ * FAZ-4: validates all five transform fields.
  */
 export function isValidMediaOverlayTransformShape(
   transform: unknown
@@ -24,15 +26,41 @@ export function isValidMediaOverlayTransformShape(
 
   const t = transform as Partial<MediaOverlayTransform>;
 
-  if (t.x !== undefined && typeof t.x !== 'number') {
-    return false;
-  }
-
-  if (t.y !== undefined && typeof t.y !== 'number') {
-    return false;
-  }
-
   if (t.scale !== undefined && typeof t.scale !== 'number') {
+    return false;
+  }
+
+  if (t.autoScale !== undefined && typeof t.autoScale !== 'number') {
+    return false;
+  }
+
+  if (t.offsetX !== undefined && typeof t.offsetX !== 'number') {
+    return false;
+  }
+
+  if (t.offsetY !== undefined && typeof t.offsetY !== 'number') {
+    return false;
+  }
+
+  if (t.rotateDeg !== undefined && typeof t.rotateDeg !== 'number') {
+    return false;
+  }
+
+  return true;
+}
+
+function isValidMediaIntrinsicShape(intrinsic: unknown): intrinsic is { width: number; height: number } {
+  if (!intrinsic || typeof intrinsic !== 'object') {
+    return false;
+  }
+
+  const i = intrinsic as Partial<{ width: number; height: number }>;
+
+  if (typeof i.width !== 'number' || !Number.isFinite(i.width) || i.width <= 0) {
+    return false;
+  }
+
+  if (typeof i.height !== 'number' || !Number.isFinite(i.height) || i.height <= 0) {
     return false;
   }
 
@@ -66,6 +94,11 @@ function isValidLocalMediaConfigShape(media: unknown): media is LocalMediaConfig
     return false;
   }
 
+  // FAZ-4.1: Validate intrinsic if present
+  if (m.intrinsic !== undefined && !isValidMediaIntrinsicShape(m.intrinsic)) {
+    return false;
+  }
+
   return true;
 }
 
@@ -81,6 +114,11 @@ function isValidUrlMediaConfigShape(media: unknown): media is UrlMediaConfig {
   }
 
   if (typeof m.url !== 'string' || m.url.length === 0) {
+    return false;
+  }
+
+  // FAZ-4.1: Validate intrinsic if present
+  if (m.intrinsic !== undefined && !isValidMediaIntrinsicShape(m.intrinsic)) {
     return false;
   }
 

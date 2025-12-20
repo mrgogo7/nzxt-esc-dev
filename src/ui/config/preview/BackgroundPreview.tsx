@@ -1,28 +1,71 @@
 // Background preview component
 
+import { useRef, useEffect } from 'react';
 import type { RenderModel } from '../../../render/model/render.types';
 import { renderBackground, renderMediaOverlay } from '../../../render/engine';
-import { DEFAULT_VIEWPORT } from '../../../render/viewport';
+import { getViewportDimensions } from '../../../render/viewport';
 
 interface BackgroundPreviewProps {
   model: RenderModel;
+  onIntrinsicSizeAvailable?: (width: number, height: number) => void;
+  showOverlayGuides?: boolean;
 }
 
-export function BackgroundPreview({ model }: BackgroundPreviewProps): JSX.Element {
-  const viewport = DEFAULT_VIEWPORT;
+export function BackgroundPreview({
+  model,
+  onIntrinsicSizeAvailable,
+  showOverlayGuides = false,
+}: BackgroundPreviewProps): JSX.Element {
+  // FAZ-4.2.1 Viewport Unification: Use LCD viewport for all transform math
+  // Preview scaling is visual only (CSS), not mathematical
+  const lcdViewport = getViewportDimensions();
   const previewSize = 250;
+  const previewScale = previewSize / lcdViewport.width;
 
-  const backgroundStyle = renderBackground(model, {
-    width: previewSize,
-    height: previewSize,
-    isCircular: viewport.isCircular,
-  });
+  const imageRef = useRef<HTMLImageElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const lastMediaSrcRef = useRef<string | null>(null);
 
-  const overlay = renderMediaOverlay(model, {
-    width: previewSize,
-    height: previewSize,
-    isCircular: viewport.isCircular,
-  });
+  // Render at LCD viewport size (transform math uses LCD viewport)
+  const backgroundStyle = renderBackground(model, lcdViewport);
+  const overlay = renderMediaOverlay(model, lcdViewport);
+
+  // Track media source changes
+  const currentMediaSrc = overlay?.src || null;
+  useEffect(() => {
+    if (currentMediaSrc !== lastMediaSrcRef.current) {
+      lastMediaSrcRef.current = currentMediaSrc;
+      // Reset refs when media source changes
+      imageRef.current = null;
+      videoRef.current = null;
+    }
+  }, [currentMediaSrc]);
+
+  // Handle image intrinsic size
+  const handleImageLoad = () => {
+    const img = imageRef.current;
+    if (!img || !onIntrinsicSizeAvailable) return;
+
+    const naturalWidth = img.naturalWidth;
+    const naturalHeight = img.naturalHeight;
+
+    if (naturalWidth > 0 && naturalHeight > 0) {
+      onIntrinsicSizeAvailable(naturalWidth, naturalHeight);
+    }
+  };
+
+  // Handle video intrinsic size
+  const handleVideoLoadedMetadata = () => {
+    const video = videoRef.current;
+    if (!video || !onIntrinsicSizeAvailable) return;
+
+    const videoWidth = video.videoWidth;
+    const videoHeight = video.videoHeight;
+
+    if (videoWidth > 0 && videoHeight > 0) {
+      onIntrinsicSizeAvailable(videoWidth, videoHeight);
+    }
+  };
 
   return (
     <div style={{
@@ -31,36 +74,111 @@ export function BackgroundPreview({ model }: BackgroundPreviewProps): JSX.Elemen
       alignItems: 'center',
       gap: '12px',
     }}>
+      {/* Preview wrapper: visual scaling only, no transform math */}
       <div
-        className="render-background render-background-circle"
         style={{
-          ...backgroundStyle,
           width: `${previewSize}px`,
           height: `${previewSize}px`,
-          border: '14px solid #000',
-          borderRadius: '50%',
-          boxSizing: 'border-box',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden',
         }}
       >
-        {overlay && (
-          <div className="render-media-overlay">
-            {overlay.primitive === 'image' ? (
-              <img
-                className="render-media-overlay-media"
-                src={overlay.src}
-                alt=""
-              />
-            ) : (
-              <video
-                className="render-media-overlay-media"
-                src={overlay.src}
-                autoPlay
-                loop
-                muted
-              />
+        {/* Inner container: rendered at LCD size, scaled down visually */}
+        <div
+          style={{
+            width: `${lcdViewport.width}px`,
+            height: `${lcdViewport.height}px`,
+            transform: `scale(${previewScale})`,
+            transformOrigin: 'center center',
+          }}
+        >
+          <div
+            className="render-background render-background-circle"
+            style={{
+              ...backgroundStyle,
+              width: `${lcdViewport.width}px`,
+              height: `${lcdViewport.height}px`,
+              border: '14px solid #000',
+              borderRadius: '50%',
+              boxSizing: 'border-box',
+            }}
+          >
+            {overlay && (
+              <div className="render-media-overlay">
+                <div
+                  className="render-media-world"
+                  style={{
+                    width: `${overlay.worldWidth}px`,
+                    height: `${overlay.worldHeight}px`,
+                    marginLeft: `-${overlay.worldWidth / 2}px`,
+                    marginTop: `-${overlay.worldHeight / 2}px`,
+                    transform: overlay.worldTransform,
+                  }}
+                >
+                  {overlay.primitive === 'image' ? (
+                    <img
+                      ref={imageRef}
+                      className="render-media-overlay-media"
+                      src={overlay.src}
+                      alt=""
+                      onLoad={handleImageLoad}
+                    />
+                  ) : (
+                    <video
+                      ref={videoRef}
+                      className="render-media-overlay-media"
+                      src={overlay.src}
+                      autoPlay
+                      loop
+                      muted
+                      onLoadedMetadata={handleVideoLoadedMetadata}
+                    />
+                  )}
+                  {showOverlayGuides && (
+                    <>
+                      {/* Crosshair guide - follows world transform */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '50%',
+                          left: 0,
+                          right: 0,
+                          height: '1px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                          transform: 'translateY(-50%)',
+                          pointerEvents: 'none',
+                        }}
+                      />
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: '50%',
+                          top: 0,
+                          bottom: 0,
+                          width: '1px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                          transform: 'translateX(-50%)',
+                          pointerEvents: 'none',
+                        }}
+                      />
+                      {/* Bounding box guide - shows world bounds */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          border: '1px solid rgba(255, 255, 255, 0.3)',
+                          pointerEvents: 'none',
+                        }}
+                      />
+                    </>
+                  )}
+                </div>
+              </div>
             )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

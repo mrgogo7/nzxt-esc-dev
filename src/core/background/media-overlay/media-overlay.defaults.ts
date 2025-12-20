@@ -5,18 +5,32 @@ import type { MediaOverlayTransform, BackgroundMediaOverlayConfig } from './medi
 /**
  * Default transform for new media overlays.
  *
- * - x, y: no offset
+ * FAZ-4:
  * - scale: 1 (no scaling)
+ * - autoScale: 1 (no autoscale computed yet)
+ * - offsetX: 0 (centered)
+ * - offsetY: 0 (centered)
+ * - rotateDeg: 0 (no rotation)
  */
 export const DEFAULT_MEDIA_OVERLAY_TRANSFORM: MediaOverlayTransform = {
-  x: 0,
-  y: 0,
   scale: 1,
+  autoScale: 1,
+  offsetX: 0,
+  offsetY: 0,
+  rotateDeg: 0,
 };
 
 /**
  * Normalizes a potentially partial transform into a full transform,
  * filling missing fields with defaults.
+ *
+ * FAZ-4 normalization rules:
+ * - Fill missing fields with defaults
+ * - Replace NaN / Infinity with defaults
+ * - Clamp:
+ *   - offsetX / offsetY → [-1, 1]
+ *   - rotateDeg → [-180, 180]
+ *   - scale / autoScale → > 0 (clamp to minimum 0.01)
  */
 export function normalizeMediaOverlayTransform(
   transform: Partial<MediaOverlayTransform> | undefined
@@ -25,14 +39,36 @@ export function normalizeMediaOverlayTransform(
     return { ...DEFAULT_MEDIA_OVERLAY_TRANSFORM };
   }
 
-  const x = typeof transform.x === 'number' ? transform.x : DEFAULT_MEDIA_OVERLAY_TRANSFORM.x;
-  const y = typeof transform.y === 'number' ? transform.y : DEFAULT_MEDIA_OVERLAY_TRANSFORM.y;
+  const MIN_SCALE = 0.01;
+
   const scale =
-    typeof transform.scale === 'number' && Number.isFinite(transform.scale)
-      ? transform.scale
+    typeof transform.scale === 'number' && Number.isFinite(transform.scale) && transform.scale > 0
+      ? Math.max(MIN_SCALE, transform.scale)
       : DEFAULT_MEDIA_OVERLAY_TRANSFORM.scale;
 
-  return { x, y, scale };
+  const autoScale =
+    typeof transform.autoScale === 'number' &&
+    Number.isFinite(transform.autoScale) &&
+    transform.autoScale > 0
+      ? Math.max(MIN_SCALE, transform.autoScale)
+      : DEFAULT_MEDIA_OVERLAY_TRANSFORM.autoScale;
+
+  const offsetX =
+    typeof transform.offsetX === 'number' && Number.isFinite(transform.offsetX)
+      ? Math.max(-1, Math.min(1, transform.offsetX))
+      : DEFAULT_MEDIA_OVERLAY_TRANSFORM.offsetX;
+
+  const offsetY =
+    typeof transform.offsetY === 'number' && Number.isFinite(transform.offsetY)
+      ? Math.max(-1, Math.min(1, transform.offsetY))
+      : DEFAULT_MEDIA_OVERLAY_TRANSFORM.offsetY;
+
+  const rotateDeg =
+    typeof transform.rotateDeg === 'number' && Number.isFinite(transform.rotateDeg)
+      ? Math.max(-180, Math.min(180, transform.rotateDeg))
+      : DEFAULT_MEDIA_OVERLAY_TRANSFORM.rotateDeg;
+
+  return { scale, autoScale, offsetX, offsetY, rotateDeg };
 }
 
 /**
