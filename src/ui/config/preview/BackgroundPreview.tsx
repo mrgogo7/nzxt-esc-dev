@@ -10,7 +10,7 @@ interface BackgroundPreviewProps {
 
 export function BackgroundPreview({ model }: BackgroundPreviewProps): JSX.Element {
   const viewport = DEFAULT_VIEWPORT;
-  const previewSize = 200;
+  const previewSize = 250;
 
   const backgroundStyle = renderBackground(model, {
     width: previewSize,
