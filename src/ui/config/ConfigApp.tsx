@@ -333,14 +333,11 @@ export function ConfigApp(): JSX.Element {
         transform.offsetY === 0 &&
         transform.rotateDeg === 0;
 
-      // Compute autoscale based on media short edge filling the viewport
-      // - Landscape media: short edge = height → fill viewport height
-      // - Portrait media: short edge = width → fill viewport width
+      // Compute autoscale so the media short edge fills the viewport short edge
       const viewport = getViewportDimensions();
-      const autoScaleShortEdge =
-        width <= height
-          ? viewport.width / width
-          : viewport.height / height;
+      const viewportShortEdge = Math.min(viewport.width, viewport.height);
+      const mediaShortEdge = Math.min(width, height);
+      const autoScaleShortEdge = viewportShortEdge / mediaShortEdge;
 
       // FAZ-4.2.1: Autoscale is baked into world dimensions, not transform.scale
       // When autoscale is computed:

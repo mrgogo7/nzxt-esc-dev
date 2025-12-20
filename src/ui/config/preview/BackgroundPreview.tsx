@@ -1,6 +1,7 @@
 // Background preview component
 
-import { useRef, useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import type { SyntheticEvent } from 'react';
 import type { RenderModel } from '../../../render/model/render.types';
 import { renderBackground, renderMediaOverlay } from '../../../render/engine';
 import { getViewportDimensions } from '../../../render/viewport';
@@ -22,8 +23,6 @@ export function BackgroundPreview({
   const previewSize = 250;
   const previewScale = previewSize / lcdViewport.width;
 
-  const imageRef = useRef<HTMLImageElement | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
   const lastMediaSrcRef = useRef<string | null>(null);
 
   // Render at LCD viewport size (transform math uses LCD viewport)
@@ -35,19 +34,15 @@ export function BackgroundPreview({
   useEffect(() => {
     if (currentMediaSrc !== lastMediaSrcRef.current) {
       lastMediaSrcRef.current = currentMediaSrc;
-      // Reset refs when media source changes
-      imageRef.current = null;
-      videoRef.current = null;
     }
   }, [currentMediaSrc]);
 
   // Handle image intrinsic size
-  const handleImageLoad = () => {
-    const img = imageRef.current;
-    if (!img || !onIntrinsicSizeAvailable) return;
+  const handleImageLoad = (event: SyntheticEvent<HTMLImageElement>) => {
+    if (!onIntrinsicSizeAvailable) return;
 
-    const naturalWidth = img.naturalWidth;
-    const naturalHeight = img.naturalHeight;
+    const img = event.currentTarget;
+    const { naturalWidth, naturalHeight } = img;
 
     if (naturalWidth > 0 && naturalHeight > 0) {
       onIntrinsicSizeAvailable(naturalWidth, naturalHeight);
@@ -55,12 +50,13 @@ export function BackgroundPreview({
   };
 
   // Handle video intrinsic size
-  const handleVideoLoadedMetadata = () => {
-    const video = videoRef.current;
-    if (!video || !onIntrinsicSizeAvailable) return;
+  const handleVideoLoadedMetadata = (
+    event: SyntheticEvent<HTMLVideoElement>
+  ) => {
+    if (!onIntrinsicSizeAvailable) return;
 
-    const videoWidth = video.videoWidth;
-    const videoHeight = video.videoHeight;
+    const video = event.currentTarget;
+    const { videoWidth, videoHeight } = video;
 
     if (videoWidth > 0 && videoHeight > 0) {
       onIntrinsicSizeAvailable(videoWidth, videoHeight);
@@ -119,7 +115,6 @@ export function BackgroundPreview({
                 >
                   {overlay.primitive === 'image' ? (
                     <img
-                      ref={imageRef}
                       className="render-media-overlay-media"
                       src={overlay.src}
                       alt=""
@@ -127,7 +122,6 @@ export function BackgroundPreview({
                     />
                   ) : (
                     <video
-                      ref={videoRef}
                       className="render-media-overlay-media"
                       src={overlay.src}
                       autoPlay
@@ -183,4 +177,3 @@ export function BackgroundPreview({
     </div>
   );
 }
-
