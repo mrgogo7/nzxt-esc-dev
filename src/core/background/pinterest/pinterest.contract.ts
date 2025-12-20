@@ -20,8 +20,9 @@ const FALLBACK_COLOR_BACKGROUND = {
 export const pinterestBackgroundContract: PinterestBackgroundContract = {
   sourceType: 'pinterest',
 
-  validate(): config is PinterestBackgroundConfig {
-    return false;
+  validate(config: unknown): config is PinterestBackgroundConfig {
+    // FAZ-2 stub: pinterest backgrounds are not yet supported as a base source.
+    return false && !!config;
   },
 
   normalize(config: Partial<PinterestBackgroundConfig>): PinterestBackgroundConfig {
@@ -31,7 +32,8 @@ export const pinterestBackgroundContract: PinterestBackgroundContract = {
     };
   },
 
-  toRenderModel(): typeof FALLBACK_COLOR_BACKGROUND {
+  toRenderModel(config: PinterestBackgroundConfig): typeof FALLBACK_COLOR_BACKGROUND {
+    void config;
     return FALLBACK_COLOR_BACKGROUND;
   },
 };

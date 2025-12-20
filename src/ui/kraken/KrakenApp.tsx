@@ -3,13 +3,13 @@
 import { useState, useEffect } from 'react';
 import { loadActivePresetState } from '../../storage/local';
 import { sessionBus } from '../../sync/sessionBus';
-import { presetToRenderModel } from '../../render/engine';
+import { presetToRenderModel, renderBackground, renderMediaOverlay } from '../../render/engine';
 import { getViewportDimensions } from '../../render/viewport';
 import { startNzxtMonitoring } from '../../platform/nzxtApi';
 import { DebugMonitoringOverlay } from './debug/DebugMonitoringOverlay';
 import type { RenderModel } from '../../render/model/render.types';
-import { renderBackground } from '../../render/engine';
 import '../../render/styles/background.css';
+import '../../render/styles/overlay.css';
 import '../../styles/kraken.css';
 
 export function KrakenApp(): JSX.Element {
@@ -21,32 +21,37 @@ export function KrakenApp(): JSX.Element {
     const state = loadActivePresetState();
     const activePreset = state.presets[state.activePresetId];
     
-      if (activePreset) {
-        const renderModel = presetToRenderModel(activePreset);
-        setModel(renderModel);
-        setIsInitialized(true);
+    if (activePreset) {
+      const renderModel = presetToRenderModel(activePreset);
+      setModel(renderModel);
+      setIsInitialized(true);
 
-        // Only set CSS variable for solid colors (not gradients)
-        if (activePreset.background.sourceType === 'color') {
-          const color = activePreset.background.color;
-          // CSS variables don't support gradients, so only set for solid colors
-          if (color && !color.startsWith('linear-gradient(') && !color.startsWith('radial-gradient(')) {
-            document.documentElement.style.setProperty('--kraken-bg-color', color);
-          }
+      const color = activePreset.background.base.color;
+      // CSS variables don't support gradients, so only set for solid colors
+      if (
+        color &&
+        !color.startsWith('linear-gradient(') &&
+        !color.startsWith('radial-gradient(')
+      ) {
+        document.documentElement.style.setProperty('--kraken-bg-color', color);
+      }
+    }
+
+    const unsubscribe = sessionBus.subscribeActivePreset((snapshot) => {
+      setModel(snapshot);
+      // Only set CSS variable for solid colors (not gradients)
+      if (snapshot.background.kind === 'color') {
+        const color = snapshot.background.color;
+        // CSS variables don't support gradients, so only set for solid colors
+        if (
+          color &&
+          !color.startsWith('linear-gradient(') &&
+          !color.startsWith('radial-gradient(')
+        ) {
+          document.documentElement.style.setProperty('--kraken-bg-color', color);
         }
       }
-
-      const unsubscribe = sessionBus.subscribeActivePreset((snapshot) => {
-        setModel(snapshot);
-        // Only set CSS variable for solid colors (not gradients)
-        if (snapshot.background.kind === 'color') {
-          const color = snapshot.background.color;
-          // CSS variables don't support gradients, so only set for solid colors
-          if (color && !color.startsWith('linear-gradient(') && !color.startsWith('radial-gradient(')) {
-            document.documentElement.style.setProperty('--kraken-bg-color', color);
-          }
-        }
-      });
+    });
 
     return () => {
       unsubscribe();
@@ -75,6 +80,7 @@ export function KrakenApp(): JSX.Element {
   }
 
   const backgroundStyle = renderBackground(model, viewport);
+  const overlay = renderMediaOverlay(model, viewport);
 
   return (
     <div className="kraken-root">
@@ -85,7 +91,27 @@ export function KrakenApp(): JSX.Element {
             ...backgroundStyle,
             borderRadius: viewport.isCircular ? '50%' : '0',
           }}
-        />
+        >
+          {overlay && (
+            <div className="render-media-overlay">
+              {overlay.primitive === 'image' ? (
+                <img
+                  className="render-media-overlay-media"
+                  src={overlay.src}
+                  alt=""
+                />
+              ) : (
+                <video
+                  className="render-media-overlay-media"
+                  src={overlay.src}
+                  autoPlay
+                  loop
+                  muted
+                />
+              )}
+            </div>
+          )}
+        </div>
         <DebugMonitoringOverlay />
       </div>
     </div>

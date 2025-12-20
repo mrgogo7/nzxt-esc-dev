@@ -3,7 +3,33 @@ import { createPortal } from 'react-dom';
 import { useModal } from './modal.context';
 import type { ModalPayloadMap, ModalState } from './modal.types';
 import { useTranslation } from '../../../i18n';
+import type { TranslationKey } from '../../../i18n';
+import type {
+  BackgroundMediaOverlayConfig,
+  LocalMediaConfig,
+} from '../../../core/background/media-overlay/media-overlay.types';
+import { mediaOverlayContract } from '../../../core/background/media-overlay/media-overlay.contract';
+import {
+  resolveBackgroundMediaFromUrl,
+  classifyBackgroundMediaUrl,
+  type BackgroundMediaUrlKind,
+  ResolveError,
+} from '../../../core/background/media-overlay/media-overlay.resolve';
+import { FileImage, Link } from 'lucide-react';
+import { Alert } from '../alert';
 import '../../../styles/modal.css';
+
+type BackgroundMediaInternalState =
+  | { phase: 'idle' }
+  | { phase: 'selecting'; source: 'local' | 'url' }
+  | { phase: 'resolved'; overlay: BackgroundMediaOverlayConfig }
+  | { phase: 'error'; message: string };
+
+interface BackgroundMediaSelectedFileInfo {
+  name: string;
+  size: number;
+  type: string;
+}
 
 /**
  * Resolves the rendered content for the current modal state.
@@ -15,10 +41,22 @@ import '../../../styles/modal.css';
  */
 function renderModalContent(
   state: ModalState,
-  t: (key: string) => string,
+  t: (key: TranslationKey) => string,
   closeModal: () => void,
   renameValue?: string,
-  setRenameValue?: (value: string) => void
+  setRenameValue?: (value: string) => void,
+  backgroundMediaState?: BackgroundMediaInternalState,
+  setBackgroundMediaState?: (next: BackgroundMediaInternalState) => void,
+  backgroundMediaSource?: 'local' | 'url' | null,
+  setBackgroundMediaSource?: (source: 'local' | 'url' | null) => void,
+  backgroundMediaUrlInput?: string,
+  setBackgroundMediaUrlInput?: (value: string) => void,
+  backgroundMediaSelectedFile?: BackgroundMediaSelectedFileInfo | null,
+  setBackgroundMediaSelectedFile?: (info: BackgroundMediaSelectedFileInfo | null) => void,
+  backgroundMediaUrlKind?: BackgroundMediaUrlKind | null,
+  setBackgroundMediaUrlKind?: (kind: BackgroundMediaUrlKind | null) => void,
+  isBackgroundMediaResolvingUrl?: boolean,
+  setIsBackgroundMediaResolvingUrl?: (value: boolean) => void
 ): JSX.Element | null {
   if (!state.type || !state.props) {
     return null;
@@ -303,6 +341,430 @@ function renderModalContent(
       );
     }
 
+    case 'BACKGROUND_MEDIA_REMOVE_CONFIRM': {
+      const props = state.props as ModalPayloadMap['BACKGROUND_MEDIA_REMOVE_CONFIRM'];
+      const bodyText = t(props.bodyKey);
+
+      return (
+        <>
+          <div className="modal-header">
+            <h2>{t(props.titleKey)}</h2>
+          </div>
+          <div className="modal-body">
+            <p>{bodyText}</p>
+          </div>
+          <div className="modal-footer">
+            <button
+              type="button"
+              className="modal-button modal-button-secondary"
+              onClick={() => {
+                props.onCancel?.();
+                closeModal();
+              }}
+            >
+              {t(props.cancelLabelKey)}
+            </button>
+            <button
+              type="button"
+              className="modal-button modal-button-primary"
+              onClick={() => {
+                props.onConfirm();
+                closeModal();
+              }}
+            >
+              {t(props.confirmLabelKey)}
+            </button>
+          </div>
+        </>
+      );
+    }
+
+    case 'BACKGROUND_MEDIA': {
+      const props = state.props as ModalPayloadMap['BACKGROUND_MEDIA'];
+
+      if (
+        !backgroundMediaState ||
+        !setBackgroundMediaState ||
+        !setBackgroundMediaSource ||
+        !setBackgroundMediaUrlInput ||
+        !setBackgroundMediaSelectedFile ||
+        !setBackgroundMediaUrlKind ||
+        typeof isBackgroundMediaResolvingUrl !== 'boolean' ||
+        !setIsBackgroundMediaResolvingUrl
+      ) {
+        return null;
+      }
+
+      const currentSource = backgroundMediaSource ?? null;
+      const urlInput = backgroundMediaUrlInput ?? '';
+      const selectedFile = backgroundMediaSelectedFile ?? null;
+      const isResolved = backgroundMediaState.phase === 'resolved';
+      const hasError = backgroundMediaState.phase === 'error';
+      const errorMessage = hasError ? backgroundMediaState.message : '';
+      const urlKind = backgroundMediaUrlKind ?? 'unknown';
+
+      let canApply = false;
+      if (currentSource === 'local') {
+        canApply = isResolved;
+      } else if (currentSource === 'url') {
+        if (urlKind === 'pinterest') {
+          // Pinterest: Apply triggers resolve, so only check if not already resolving and URL is not empty
+          canApply = urlInput.trim().length > 0 && !isBackgroundMediaResolvingUrl;
+        } else {
+          canApply = urlInput.trim().length > 0 && !isBackgroundMediaResolvingUrl;
+        }
+      }
+
+      const handleSelectSource = (source: 'local' | 'url') => {
+        setBackgroundMediaSource(source);
+        setBackgroundMediaState({ phase: 'selecting', source });
+        setBackgroundMediaUrlInput('');
+        setBackgroundMediaSelectedFile(null);
+        setBackgroundMediaUrlKind(null);
+        setIsBackgroundMediaResolvingUrl(false);
+      };
+
+      const handleFileChange: React.ChangeEventHandler<HTMLInputElement> = (event) => {
+        const file = event.target.files?.[0] ?? null;
+
+        // Allow re-selecting the same input
+        event.target.value = '';
+
+        if (!file) {
+          if (currentSource) {
+            setBackgroundMediaState({ phase: 'selecting', source: currentSource });
+          } else {
+            setBackgroundMediaState({ phase: 'idle' });
+          }
+          setBackgroundMediaSelectedFile(null);
+          return;
+        }
+
+        // Local duplicate detection: same name + same size as existing overlay
+        if (
+          props.existingLocalFileName &&
+          typeof props.existingLocalFileSize === 'number' &&
+          file.name === props.existingLocalFileName &&
+          file.size === props.existingLocalFileSize
+        ) {
+          setBackgroundMediaSelectedFile({
+            name: file.name,
+            size: file.size,
+            type: file.type,
+          });
+          setBackgroundMediaState({
+            phase: 'error',
+            message: t('backgroundMediaInvalidSource'),
+          });
+          return;
+        }
+
+        const mediaConfig: LocalMediaConfig = {
+          type: 'local',
+          fileName: file.name,
+          fileType: file.type || 'application/octet-stream',
+          fileSize: file.size,
+          // For FAZ-3B, mediaId is a blob URL treated as an opaque string.
+          mediaId: URL.createObjectURL(file),
+        };
+
+        try {
+          const normalized = mediaOverlayContract.normalize({
+            source: 'local',
+            media: mediaConfig,
+          } as Partial<BackgroundMediaOverlayConfig>);
+
+          if (!mediaOverlayContract.validate(normalized)) {
+            setBackgroundMediaSelectedFile({
+              name: file.name,
+              size: file.size,
+              type: file.type,
+            });
+            setBackgroundMediaState({
+              phase: 'error',
+              message: t('backgroundMediaInvalidSource'),
+            });
+            return;
+          }
+
+          setBackgroundMediaSelectedFile({
+            name: file.name,
+            size: file.size,
+            type: file.type,
+          });
+          setBackgroundMediaState({
+            phase: 'resolved',
+            overlay: normalized,
+          });
+        } catch {
+          setBackgroundMediaSelectedFile({
+            name: file.name,
+            size: file.size,
+            type: file.type,
+          });
+          setBackgroundMediaState({
+            phase: 'error',
+            message: t('backgroundMediaInvalidSource'),
+          });
+        }
+      };
+
+      const handleApply = async () => {
+        if (currentSource === 'url') {
+          const raw = (backgroundMediaUrlInput ?? '').trim();
+
+          if (!raw) {
+            setBackgroundMediaState({
+              phase: 'error',
+              message: t('backgroundMediaInvalidSource'),
+            });
+            return;
+          }
+
+          // Pinterest URLs: resolve on Apply (no separate Resolve button)
+          if (urlKind === 'pinterest') {
+            setIsBackgroundMediaResolvingUrl(true);
+            setBackgroundMediaState({
+              phase: 'selecting',
+              source: 'url',
+            });
+
+            try {
+              const overlay = await resolveBackgroundMediaFromUrl(raw);
+              setBackgroundMediaState({
+                phase: 'resolved',
+                overlay,
+              });
+              props.onApply(overlay);
+              closeModal();
+            } catch (error: unknown) {
+              let messageKey: TranslationKey = 'backgroundMediaInvalidSource';
+
+              if (error instanceof ResolveError) {
+                if (error.code === 'PINTEREST_FETCH_FAILED') {
+                  messageKey = 'backgroundMediaPinterestFetchFailed';
+                } else if (error.code === 'PINTEREST_MEDIA_NOT_FOUND') {
+                  messageKey = 'backgroundMediaPinterestNoMedia';
+                } else {
+                  messageKey = 'backgroundMediaInvalidSource';
+                }
+              }
+
+              setBackgroundMediaState({
+                phase: 'error',
+                message: t(messageKey),
+              });
+            } finally {
+              setIsBackgroundMediaResolvingUrl(false);
+            }
+
+            return;
+          }
+
+          // Direct / YouTube / unknown URLs are resolved on Apply.
+          try {
+            const overlay = await resolveBackgroundMediaFromUrl(raw);
+            props.onApply(overlay);
+            closeModal();
+          } catch (error: unknown) {
+            let messageKey: TranslationKey = 'backgroundMediaInvalidSource';
+
+            if (error instanceof ResolveError) {
+              if (error.code === 'PINTEREST_FETCH_FAILED') {
+                messageKey = 'backgroundMediaPinterestFetchFailed';
+              } else if (error.code === 'PINTEREST_MEDIA_NOT_FOUND') {
+                messageKey = 'backgroundMediaPinterestNoMedia';
+              } else {
+                messageKey = 'backgroundMediaInvalidSource';
+              }
+            }
+
+            setBackgroundMediaState({
+              phase: 'error',
+              message: t(messageKey),
+            });
+          }
+
+          return;
+        }
+
+        if (currentSource === 'local') {
+          if (!isResolved) {
+            return;
+          }
+          props.onApply(backgroundMediaState.overlay);
+          closeModal();
+        }
+      };
+
+      const handleCancel = () => {
+        props.onCancel?.();
+        closeModal();
+      };
+
+      const isCompact = currentSource !== null;
+      const existingSourceType = props.existingLocalFileName ? 'local' : props.existingUrl ? 'url' : null;
+      const showLocalReplaceWarning = props.hasExistingOverlay && currentSource === 'local' && selectedFile !== null;
+      const showUrlReplaceWarning = props.hasExistingOverlay && currentSource === 'url';
+
+      return (
+        <>
+          <div className="modal-header">
+            <h2>{t(props.titleKey)}</h2>
+          </div>
+          <div className="modal-body background-media-modal-body">
+            {props.hasExistingOverlay && (
+              <div className="background-media-modal-current-info">
+                <div className="background-media-modal-current-label">
+                  Current Background Media: {existingSourceType === 'local' ? 'Local' : 'URL'}
+                </div>
+                <div className="background-media-modal-current-value">
+                  {existingSourceType === 'local' 
+                    ? props.existingLocalFileName 
+                    : props.existingUrl}
+                </div>
+              </div>
+            )}
+
+            {!props.hasExistingOverlay && currentSource === null && (
+              <div className="background-media-modal-empty-instruction">
+                {t('backgroundMediaEmptyStateInstruction')}
+              </div>
+            )}
+            
+            <div className={`background-media-source-cards ${isCompact ? 'background-media-source-cards--compact' : ''}`}>
+              <button
+                type="button"
+                className={`background-media-source-card ${
+                  currentSource === 'local' ? 'background-media-source-card--selected' : ''
+                } ${isCompact ? 'background-media-source-card--compact' : ''}`}
+                onClick={() => handleSelectSource('local')}
+              >
+                <FileImage size={isCompact ? 16 : 20} />
+                <span>{t('backgroundMediaSourceLocal')}</span>
+              </button>
+              <button
+                type="button"
+                className={`background-media-source-card ${
+                  currentSource === 'url' ? 'background-media-source-card--selected' : ''
+                } ${isCompact ? 'background-media-source-card--compact' : ''}`}
+                onClick={() => handleSelectSource('url')}
+              >
+                <Link size={isCompact ? 16 : 20} />
+                <span>{t('backgroundMediaSourceUrl')}</span>
+              </button>
+            </div>
+
+            {currentSource === 'local' && (
+              <div className="background-media-modal-section">
+                <div className="background-media-modal-local-description">
+                  {t('backgroundMediaLocalBrowseDescription')}
+                </div>
+                <div className="background-media-modal-file-row">
+                  <button
+                    type="button"
+                    className="background-media-modal-browse-button"
+                    onClick={() => {
+                      const input = document.getElementById(
+                        'background-media-file-input'
+                      ) as HTMLInputElement | null;
+                      input?.click();
+                    }}
+                  >
+                    {t('backgroundMediaBrowse')}
+                  </button>
+                  <input
+                    id="background-media-file-input"
+                    type="file"
+                    accept="image/*,video/*"
+                    className="background-media-modal-file-input"
+                    onChange={handleFileChange}
+                  />
+                  {selectedFile && (
+                    <span className="background-media-modal-file-info">
+                      {selectedFile.name}
+                    </span>
+                  )}
+                </div>
+                {showLocalReplaceWarning && (
+                  <Alert variant="warning">
+                    {t('backgroundMediaReplaceWarning')}
+                  </Alert>
+                )}
+              </div>
+            )}
+
+            {currentSource === 'url' && (
+              <div className="background-media-modal-section">
+                <div className="background-media-modal-url-description">
+                  {t('backgroundMediaUrlDescription')}
+                </div>
+                <div className="background-media-modal-url-examples">
+                  {t('backgroundMediaUrlExamples')}
+                </div>
+                <div className="background-media-modal-url-row">
+                  <input
+                    id="background-media-url-input"
+                    type="text"
+                    className="modal-input background-media-modal-url-input"
+                    value={urlInput}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setBackgroundMediaUrlInput(value);
+                      setBackgroundMediaUrlKind(classifyBackgroundMediaUrl(value));
+                      if (value.trim()) {
+                        setBackgroundMediaState({
+                          phase: 'selecting',
+                          source: 'url',
+                        });
+                      } else {
+                        setBackgroundMediaState({ phase: 'idle' });
+                      }
+                    }}
+                  />
+                </div>
+                
+                {showUrlReplaceWarning && (
+                  <Alert variant="warning">
+                    {t('backgroundMediaUrlReplaceWarning')}
+                  </Alert>
+                )}
+
+                {isBackgroundMediaResolvingUrl && (
+                  <Alert variant="loading">
+                    {t('backgroundMediaResolving')} Please wait
+                  </Alert>
+                )}
+
+                {hasError && !isBackgroundMediaResolvingUrl && (
+                  <Alert variant="warning">
+                    {errorMessage || t('backgroundMediaInvalidSource')}
+                  </Alert>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="modal-footer">
+            <button
+              type="button"
+              className="modal-button modal-button-secondary"
+              onClick={handleCancel}
+            >
+              {t('backgroundMediaCancel')}
+            </button>
+            <button
+              type="button"
+              className="modal-button modal-button-primary"
+              disabled={!canApply}
+              onClick={handleApply}
+            >
+              {t('backgroundMediaApply')}
+            </button>
+          </div>
+        </>
+      );
+    }
+
     default:
       return null;
   }
@@ -323,6 +785,21 @@ export function ModalRoot(): JSX.Element | null {
 
   // State for rename input (used for PRESET_IMPORT_CONFLICT and PRESET_RENAME modals)
   const [renameValue, setRenameValue] = React.useState<string>('');
+
+  // State for background media modal (FAZ-3B, UI-local only)
+  const [backgroundMediaState, setBackgroundMediaState] = React.useState<BackgroundMediaInternalState>({
+    phase: 'idle',
+  });
+  const [backgroundMediaSource, setBackgroundMediaSource] = React.useState<'local' | 'url' | null>(
+    null
+  );
+  const [backgroundMediaUrlInput, setBackgroundMediaUrlInput] = React.useState<string>('');
+  const [backgroundMediaSelectedFile, setBackgroundMediaSelectedFile] =
+    React.useState<BackgroundMediaSelectedFileInfo | null>(null);
+  const [backgroundMediaUrlKind, setBackgroundMediaUrlKind] =
+    React.useState<BackgroundMediaUrlKind | null>(null);
+  const [isBackgroundMediaResolvingUrl, setIsBackgroundMediaResolvingUrl] =
+    React.useState<boolean>(false);
 
   // Reset rename value when modal opens/closes
   React.useEffect(() => {
@@ -356,6 +833,43 @@ export function ModalRoot(): JSX.Element | null {
     }
 
     setRenameValue('');
+  }, [state.type, state.props]);
+
+  // Reset background media modal state whenever it closes or switches to another modal type.
+  // Initialize source based on existing overlay if present.
+  React.useEffect(() => {
+    if (state.type !== 'BACKGROUND_MEDIA' || !state.props) {
+      setBackgroundMediaState({ phase: 'idle' });
+      setBackgroundMediaSource(null);
+      setBackgroundMediaUrlInput('');
+      setBackgroundMediaSelectedFile(null);
+      setBackgroundMediaUrlKind(null);
+      setIsBackgroundMediaResolvingUrl(false);
+      return;
+    }
+
+    const props = state.props as ModalPayloadMap['BACKGROUND_MEDIA'];
+    
+    // Initialize source based on existing overlay
+    if (props.hasExistingOverlay) {
+      if (props.existingLocalFileName) {
+        setBackgroundMediaSource('local');
+        setBackgroundMediaState({ phase: 'selecting', source: 'local' });
+      } else if (props.existingUrl) {
+        setBackgroundMediaSource('url');
+        setBackgroundMediaUrlInput(props.existingUrl);
+        setBackgroundMediaUrlKind(classifyBackgroundMediaUrl(props.existingUrl));
+        setBackgroundMediaState({ phase: 'selecting', source: 'url' });
+      }
+    } else {
+      // No existing overlay, start in idle state
+      setBackgroundMediaState({ phase: 'idle' });
+      setBackgroundMediaSource(null);
+      setBackgroundMediaUrlInput('');
+      setBackgroundMediaSelectedFile(null);
+      setBackgroundMediaUrlKind(null);
+      setIsBackgroundMediaResolvingUrl(false);
+    }
   }, [state.type, state.props]);
 
   const handleKeyDown = React.useCallback(
@@ -395,7 +909,25 @@ export function ModalRoot(): JSX.Element | null {
     return null;
   }
 
-  const content = renderModalContent(state, t, closeModal, renameValue, setRenameValue);
+  const content = renderModalContent(
+    state,
+    t,
+    closeModal,
+    renameValue,
+    setRenameValue,
+    backgroundMediaState,
+    setBackgroundMediaState,
+    backgroundMediaSource,
+    setBackgroundMediaSource,
+    backgroundMediaUrlInput,
+    setBackgroundMediaUrlInput,
+    backgroundMediaSelectedFile,
+    setBackgroundMediaSelectedFile,
+    backgroundMediaUrlKind,
+    setBackgroundMediaUrlKind,
+    isBackgroundMediaResolvingUrl,
+    setIsBackgroundMediaResolvingUrl
+  );
 
   if (!content) {
     return null;
@@ -420,6 +952,12 @@ export function ModalRoot(): JSX.Element | null {
     ariaLabel = t(props.titleKey);
   } else if (state.type === 'GENERIC') {
     const props = state.props as ModalPayloadMap['GENERIC'];
+    ariaLabel = t(props.titleKey);
+  } else if (state.type === 'BACKGROUND_MEDIA') {
+    const props = state.props as ModalPayloadMap['BACKGROUND_MEDIA'];
+    ariaLabel = t(props.titleKey);
+  } else if (state.type === 'BACKGROUND_MEDIA_REMOVE_CONFIRM') {
+    const props = state.props as ModalPayloadMap['BACKGROUND_MEDIA_REMOVE_CONFIRM'];
     ariaLabel = t(props.titleKey);
   }
 

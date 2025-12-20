@@ -2,6 +2,7 @@
 // This file must not import any UI components.
 
 import type { TranslationKey } from '../../../i18n';
+import type { BackgroundMediaOverlayConfig } from '../../../core/background/media-overlay/media-overlay.types';
 
 /**
  * All supported modal types.
@@ -12,7 +13,9 @@ export type ModalType =
   | 'PRESET_IMPORT_CONFLICT'
   | 'PRESET_RENAME'
   | 'PRESET_EXPORT'
-  | 'PRESET_CREATE';
+  | 'PRESET_CREATE'
+  | 'BACKGROUND_MEDIA'
+  | 'BACKGROUND_MEDIA_REMOVE_CONFIRM';
 
 /**
  * Strongly-typed payloads for each modal type.
@@ -85,6 +88,44 @@ export type ModalPayloadMap = {
     cancelLabelKey: TranslationKey;
     defaultName: string;
     onConfirm: (presetName: string) => void;
+    onCancel?: () => void;
+  };
+  BACKGROUND_MEDIA: {
+    /**
+     * i18n key for the modal title.
+     */
+    titleKey: TranslationKey;
+    /**
+     * Indicates whether a media overlay already exists on the active preset.
+     * Used only for showing replace warnings in the UI.
+     */
+    hasExistingOverlay: boolean;
+    /**
+     * Metadata for an existing local overlay (if any), used for duplicate detection.
+     */
+    existingLocalFileName?: string;
+    existingLocalFileSize?: number;
+    /**
+     * Metadata for an existing URL overlay (if any).
+     * FAZ-3B does not special-case this beyond display.
+     */
+    existingUrl?: string;
+    /**
+     * Callback invoked when the user confirms a new or updated overlay.
+     * Preset mutation and storage writes happen in the caller.
+     */
+    onApply: (overlay: BackgroundMediaOverlayConfig) => void;
+    /**
+     * Optional cancel callback.
+     */
+    onCancel?: () => void;
+  };
+  BACKGROUND_MEDIA_REMOVE_CONFIRM: {
+    titleKey: TranslationKey;
+    bodyKey: TranslationKey;
+    confirmLabelKey: TranslationKey;
+    cancelLabelKey: TranslationKey;
+    onConfirm: () => void;
     onCancel?: () => void;
   };
 };

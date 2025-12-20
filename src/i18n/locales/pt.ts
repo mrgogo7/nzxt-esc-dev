@@ -89,4 +89,22 @@ export const pt = {
   // Background Settings
   backgroundSettingsTitle: 'Configurações de fundo',
   backgroundColorLabel: 'Cor de fundo',
+  backgroundMediaLabel: 'Mídia de fundo',
+  backgroundMediaAdd: 'Adicionar',
+  backgroundMediaUpdate: 'Atualizar',
+  backgroundMediaRemove: 'Remover',
+  backgroundMediaReplaceWarning: 'Isto substituirá a mídia de fundo atual.',
+  backgroundMediaUrlReplaceWarning:
+    'Nota: Se você inserir um novo endereço no campo de entrada e aplicá-lo, o conteúdo da mídia de fundo atual será substituído.',
+  backgroundMediaInvalidSource:
+    'Fonte de mídia inválida. Escolha outro arquivo ou uma URL direta de imagem/vídeo.',
+  backgroundMediaApply: 'Aplicar',
+  backgroundMediaCancel: 'Cancelar',
+  backgroundMediaSourceLocal: 'Mídia local',
+  backgroundMediaSourceUrl: 'URL',
+  backgroundMediaBrowse: 'Procurar…',
+  backgroundMediaResolve: 'Resolver',
+  backgroundMediaUrlHint: 'URL direta de imagem ou MP4:',
+  backgroundMediaPinterestResolveRequired: 'Resolva a URL do Pinterest antes de aplicar.',
+  backgroundMediaResolving: 'Resolvendo URL…',
 } as const;

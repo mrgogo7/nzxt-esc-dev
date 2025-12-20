@@ -1,8 +1,14 @@
 // Type definitions for preset configuration
 
+import type { ColorBackgroundConfig } from '../background/color/color.types';
+import type { BackgroundMediaOverlayConfig } from '../background/media-overlay/media-overlay.types';
+
 /**
- * FAZ-0 minimal preset structure.
- * Only includes background color source.
+ * FAZ-0/FAZ-3A preset structure.
+ *
+ * Background consists of:
+ * - base: always a color/gradient background
+ * - mediaOverlay (optional): single media overlay on top of base
  */
 export interface Preset {
   id: string;
@@ -31,8 +37,14 @@ export interface Preset {
    */
   isFavorite?: true;
   background: {
-    sourceType: 'color';
-    color: string; // rgba(...) for solid colors, or linear-gradient(...)/radial-gradient(...) for gradients
+    /**
+     * Base background layer (always color / gradient in FAZ-3A).
+     */
+    base: ColorBackgroundConfig;
+    /**
+     * Optional single media overlay layer.
+     */
+    mediaOverlay?: BackgroundMediaOverlayConfig;
   };
 }
 

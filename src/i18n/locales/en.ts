@@ -91,4 +91,32 @@ export const en = {
   // Background Settings
   backgroundSettingsTitle: 'Background Settings',
   backgroundColorLabel: 'Background Color',
+  backgroundMediaLabel: 'Background Media',
+  backgroundMediaAdd: 'Add',
+  backgroundMediaUpdate: 'Update',
+  backgroundMediaRemove: 'Remove',
+  backgroundMediaReplaceWarning: 'This will replace the current background media.',
+  backgroundMediaUrlReplaceWarning:
+    'Note: If you enter a new address in the input field and apply it, the current background media content will be replaced.',
+  backgroundMediaInvalidSource:
+    'Invalid media source. Please choose a different file or a direct image/video URL.',
+  backgroundMediaApply: 'Apply',
+  backgroundMediaCancel: 'Cancel',
+  backgroundMediaSourceLocal: 'Local Media',
+  backgroundMediaSourceUrl: 'URL',
+  backgroundMediaBrowse: 'Browse…',
+  backgroundMediaResolve: 'Resolve',
+  backgroundMediaUrlHint: 'Direct image or MP4 URL:',
+  backgroundMediaPinterestResolveRequired: 'Please resolve the Pinterest URL before applying.',
+  backgroundMediaResolving: 'Resolving URL…',
+  backgroundMediaPinterestFetchFailed: 'Failed to load Pinterest media. Please try again.',
+  backgroundMediaPinterestNoMedia: 'This Pinterest Pin does not contain a usable image or video.',
+  backgroundMediaEmptyStateInstruction:
+    'Select one of the options below to choose the type of media you want to use as background.',
+  backgroundMediaLocalBrowseDescription:
+    'Click the Browse button to select a JPG, GIF, or MP4 file from your computer.',
+  backgroundMediaUrlDescription:
+    'You can enter a direct image or MP4 video URL. Pinterest Pin URLs and YouTube video URLs are also supported.',
+  backgroundMediaUrlExamples:
+    'Examples:\n• https://****.com/medya.jpg or .gif or .mp4\n• https://pinterest.com/pin/123456789/\n• https://www.youtube.com/watch?v=xxxx',
 } as const;

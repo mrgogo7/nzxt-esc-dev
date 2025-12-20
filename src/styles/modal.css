@@ -183,3 +183,197 @@
   background: #991b1b;
   border-color: #dc2626;
 }
+
+/* Background Media modal (FAZ-3B) */
+.background-media-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.background-media-modal-current-info {
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.background-media-modal-current-label {
+  font-size: 11px;
+  color: #b8b8c7;
+}
+
+.background-media-modal-current-value {
+  font-size: 10px;
+  color: #9b9ba8;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.background-media-modal-empty-instruction {
+  font-size: 12px;
+  color: #b8b8c7;
+  text-align: center;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.background-media-source-cards {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.background-media-source-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.03);
+  color: #e5e5ea;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.background-media-source-card svg {
+  color: inherit;
+}
+
+.background-media-source-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.background-media-source-card--selected {
+  background: rgba(168, 85, 247, 0.15);
+  border-color: #a855f7;
+  color: #f3e8ff;
+}
+
+.background-media-source-card--selected:hover {
+  background: rgba(168, 85, 247, 0.2);
+  border-color: #c084fc;
+}
+
+/* Compact mode: reduced height, smaller icon, less padding */
+.background-media-source-cards--compact {
+  gap: 6px;
+}
+
+.background-media-source-card--compact {
+  flex-direction: row;
+  padding: 6px 10px;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.background-media-modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.background-media-modal-local-description {
+  font-size: 12px;
+  color: #d4d4dd;
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.background-media-modal-url-description {
+  font-size: 12px;
+  color: #d4d4dd;
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.background-media-modal-url-examples {
+  font-size: 12px;
+  color: #9b9ba8;
+  line-height: 1.5;
+  margin-bottom: 8px;
+  white-space: pre-line;
+}
+
+.background-media-modal-file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.background-media-modal-browse-button {
+  padding: 5px 10px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e5e5ea;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.background-media-modal-browse-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.background-media-modal-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.background-media-modal-file-info {
+  font-size: 11px;
+  color: #d4d4dd;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.background-media-modal-label {
+  font-size: 11px;
+  color: #b8b8c7;
+}
+
+.background-media-modal-url-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.background-media-modal-url-input {
+  flex: 1;
+}
+
+.background-media-modal-resolve-button {
+  padding: 5px 10px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e5e5ea;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.background-media-modal-resolve-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.24);
+}

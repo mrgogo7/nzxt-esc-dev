@@ -1,0 +1,53 @@
+/* Reusable Alert component styles */
+
+.alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.alert-icon,
+.alert-icon--spinning {
+  flex-shrink: 0;
+  color: inherit;
+}
+
+.alert-icon--spinning {
+  animation: alert-spin 1s linear infinite;
+}
+
+@keyframes alert-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.alert-text {
+  flex: 1;
+}
+
+/* Variant styles */
+.alert--info {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  color: #93c5fd;
+}
+
+.alert--warning {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  color: #facc15;
+}
+
+.alert--loading {
+  background: rgba(168, 85, 247, 0.1);
+  border: 1px solid rgba(168, 85, 247, 0.2);
+  color: #d8b4fe;
+}

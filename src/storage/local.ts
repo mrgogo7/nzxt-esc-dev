@@ -3,6 +3,8 @@
 import { STORAGE_KEYS } from './keys';
 import type { Preset, ActivePresetState } from '../core/preset/preset.types';
 import { createDefaultPreset } from '../core/preset/preset.defaults';
+import { normalizeMediaOverlayTransform } from '../core/background/media-overlay/media-overlay.defaults';
+import { isValidBackgroundMediaOverlayShape } from '../core/background/media-overlay/media-overlay.validate';
 
 /**
  * Loads the active preset state from localStorage.
@@ -149,13 +151,33 @@ function isValidPreset(obj: unknown): obj is Preset {
     return false;
   }
 
-  if (!p.background || typeof p.background !== 'object') {
+  const background = p.background as Partial<Preset['background']> | undefined;
+  if (!background || typeof background !== 'object') {
     return false;
   }
 
-  const bg = p.background as Partial<Preset['background']>;
-  if (bg.sourceType !== 'color' || typeof bg.color !== 'string') {
+  // Base layer must always be a valid color background (shape-level check only)
+  const base = (background as any).base as
+    | {
+        sourceType?: unknown;
+        color?: unknown;
+      }
+    | undefined;
+
+  if (!base || typeof base !== 'object') {
     return false;
+  }
+
+  if (base.sourceType !== 'color' || typeof base.color !== 'string') {
+    return false;
+  }
+
+  // mediaOverlay is optional; if present validate SHAPE only
+  const mediaOverlay = (background as any).mediaOverlay as unknown;
+  if (mediaOverlay !== undefined && mediaOverlay !== null) {
+    if (!isValidBackgroundMediaOverlayShape(mediaOverlay)) {
+      return false;
+    }
   }
 
   return true;
@@ -170,7 +192,7 @@ function isValidPreset(obj: unknown): obj is Preset {
  * This function is pure and returns a new normalized state.
  */
 function normalizeState(state: ActivePresetState): ActivePresetState {
-  const presets = { ...state.presets };
+  const presets: Record<string, Preset> = { ...state.presets };
   let order = [...state.order];
 
   // Remove order entries that don't exist in presets
@@ -181,6 +203,32 @@ function normalizeState(state: ActivePresetState): ActivePresetState {
   for (const id of presetIds) {
     if (!order.includes(id)) {
       order.push(id);
+    }
+  }
+
+  // Normalize mediaOverlay transform defaults (shape-only, non-visual)
+  for (const id of presetIds) {
+    const preset = presets[id];
+    if (!preset || !preset.background || typeof preset.background !== 'object') {
+      continue;
+    }
+
+    const background = preset.background;
+    const overlay = background.mediaOverlay;
+
+    if (overlay) {
+      const normalizedTransform = normalizeMediaOverlayTransform(overlay.transform);
+
+      presets[id] = {
+        ...preset,
+        background: {
+          ...background,
+          mediaOverlay: {
+            ...overlay,
+            transform: normalizedTransform,
+          },
+        },
+      };
     }
   }
 

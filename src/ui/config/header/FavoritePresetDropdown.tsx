@@ -1,6 +1,6 @@
 // Favorite Preset Quick Apply Dropdown component
 
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from '../../../i18n';
 import { loadActivePresetState } from '../../../storage/local';
 import type { Preset, ActivePresetState } from '../../../core/preset/preset.types';

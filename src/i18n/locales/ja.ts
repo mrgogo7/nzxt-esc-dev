@@ -89,4 +89,22 @@ export const ja = {
   // Background Settings
   backgroundSettingsTitle: '背景設定',
   backgroundColorLabel: '背景色',
+  backgroundMediaLabel: '背景メディア',
+  backgroundMediaAdd: '追加',
+  backgroundMediaUpdate: '更新',
+  backgroundMediaRemove: '削除',
+  backgroundMediaReplaceWarning: '現在の背景メディアが置き換えられます。',
+  backgroundMediaUrlReplaceWarning:
+    '注意: 入力フィールドに新しいアドレスを入力して適用すると、現在の背景メディアコンテンツが置き換えられます。',
+  backgroundMediaInvalidSource:
+    '無効なメディアソースです。別のファイルまたは直接の画像/動画URLを選択してください。',
+  backgroundMediaApply: '適用',
+  backgroundMediaCancel: 'キャンセル',
+  backgroundMediaSourceLocal: 'ローカルメディア',
+  backgroundMediaSourceUrl: 'URL',
+  backgroundMediaBrowse: '参照…',
+  backgroundMediaResolve: '解決',
+  backgroundMediaUrlHint: '直接の画像またはMP4のURL:',
+  backgroundMediaPinterestResolveRequired: '適用する前にPinterestのURLを解決してください。',
+  backgroundMediaResolving: 'URLを解決しています…',
 } as const;

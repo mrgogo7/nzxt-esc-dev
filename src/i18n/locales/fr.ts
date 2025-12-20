@@ -87,6 +87,34 @@ export const fr = {
   'tooltip.languageSelector': 'Sélectionner la langue',
 
   // Background Settings
-  backgroundSettingsTitle: 'Paramètres d’arrière-plan',
-  backgroundColorLabel: 'Couleur d’arrière-plan',
+  backgroundSettingsTitle: 'Paramètres d\'arrière-plan',
+  backgroundColorLabel: 'Couleur d\'arrière-plan',
+  backgroundMediaLabel: 'Média d\'arrière-plan',
+  backgroundMediaAdd: 'Ajouter',
+  backgroundMediaUpdate: 'Mettre à jour',
+  backgroundMediaRemove: 'Retirer',
+  backgroundMediaReplaceWarning: 'Cela remplacera le média d\'arrière-plan actuel.',
+  backgroundMediaUrlReplaceWarning:
+    'Note: Si vous saisissez une nouvelle adresse dans le champ de saisie et l\'appliquez, le contenu du média d\'arrière-plan actuel sera remplacé.',
+  backgroundMediaInvalidSource:
+    'Source de média invalide. Veuillez choisir un autre fichier ou une URL directe d\'image/vidéo.',
+  backgroundMediaApply: 'Appliquer',
+  backgroundMediaCancel: 'Annuler',
+  backgroundMediaSourceLocal: 'Média local',
+  backgroundMediaSourceUrl: 'URL',
+  backgroundMediaBrowse: 'Parcourir…',
+  backgroundMediaResolve: 'Résoudre',
+  backgroundMediaUrlHint: 'URL directe d\'image ou de MP4 :',
+  backgroundMediaPinterestResolveRequired: 'Veuillez résoudre l\'URL Pinterest avant d\'appliquer.',
+  backgroundMediaResolving: 'Résolution de l\'URL…',
+  backgroundMediaPinterestFetchFailed: 'Échec du chargement du média Pinterest. Veuillez réessayer.',
+  backgroundMediaPinterestNoMedia: 'Cette épingle Pinterest ne contient pas d\'image ou de vidéo utilisable.',
+  backgroundMediaEmptyStateInstruction:
+    'Sélectionnez l\'une des options ci-dessous pour choisir le type de média que vous souhaitez utiliser comme arrière-plan.',
+  backgroundMediaLocalBrowseDescription:
+    'Cliquez sur le bouton Parcourir pour sélectionner un fichier JPG, GIF ou MP4 depuis votre ordinateur.',
+  backgroundMediaUrlDescription:
+    'Vous pouvez saisir une URL directe d\'image ou de vidéo MP4. Les URL d\'épingle Pinterest et les URL de vidéo YouTube sont également prises en charge.',
+  backgroundMediaUrlExamples:
+    'Exemples:\n• https://****.com/medya.jpg or .gif or .mp4\n• https://pinterest.com/pin/123456789/\n• https://www.youtube.com/watch?v=xxxx',
 } as const;

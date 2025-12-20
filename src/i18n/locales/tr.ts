@@ -91,4 +91,32 @@ export const tr = {
   // Background Settings
   backgroundSettingsTitle: 'Arka Plan Ayarları',
   backgroundColorLabel: 'Arka Plan Rengi',
+  backgroundMediaLabel: 'Arka Plan Medyası',
+  backgroundMediaAdd: 'Ekle',
+  backgroundMediaUpdate: 'Güncelle',
+  backgroundMediaRemove: 'Kaldır',
+  backgroundMediaReplaceWarning: 'Bu işlem mevcut arka plan mediasını değiştirecek.',
+  backgroundMediaUrlReplaceWarning:
+    'Bilgilendirme: Input alanına yeni bir adres girip uygulamanız durumunda mevcut arka plan medya içeriği değiştirilecektir.',
+  backgroundMediaInvalidSource:
+    'Geçersiz medya kaynağı. Lütfen farklı bir dosya ya da doğrudan görüntü/video URL\'si seçin.',
+  backgroundMediaApply: 'Uygula',
+  backgroundMediaCancel: 'İptal',
+  backgroundMediaSourceLocal: 'Yerel Medya',
+  backgroundMediaSourceUrl: 'URL',
+  backgroundMediaBrowse: 'Gözat…',
+  backgroundMediaResolve: 'Çöz',
+  backgroundMediaUrlHint: 'Doğrudan görüntü veya MP4 URL\'si:',
+  backgroundMediaPinterestResolveRequired: 'Lütfen Pinterest URL\'sini uygulamadan önce çözün.',
+  backgroundMediaResolving: 'URL çözümleniyor…',
+  backgroundMediaPinterestFetchFailed: 'Pinterest medyası yüklenemedi. Lütfen tekrar deneyin.',
+  backgroundMediaPinterestNoMedia: 'Bu Pinterest Pin\'i kullanılabilir bir görüntü veya video içermiyor.',
+  backgroundMediaEmptyStateInstruction:
+    'Arka planda kullanmak istediğiniz medya türünü seçmek için aşağıdaki seçeneklerden birini seçin.',
+  backgroundMediaLocalBrowseDescription:
+    'Bilgisayarınızdan JPG, GIF veya MP4 formatındaki dosyalardan birini seçmek için Browse butonuna tıklayın.',
+  backgroundMediaUrlDescription:
+    'Doğrudan bir görsel veya MP4 video URL\'si girebilirsiniz. Ayrıca Pinterest Pin URL\'leri ve YouTube video URL\'leri de desteklenmektedir.',
+  backgroundMediaUrlExamples:
+    'Örnekler:\n• https://****.com/medya.jpg or .gif or .mp4\n• https://pinterest.com/pin/123456789/\n• https://www.youtube.com/watch?v=xxxx',
 } as const;

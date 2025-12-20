@@ -11,8 +11,11 @@ export function createDefaultPreset(): Preset {
     name: 'Default',
     isDefault: true,
     background: {
-      sourceType: 'color',
-      color: '#000000',
+      base: {
+        sourceType: 'color',
+        color: '#000000',
+      },
+      // No mediaOverlay by default in FAZ-3A
     },
   };
 }

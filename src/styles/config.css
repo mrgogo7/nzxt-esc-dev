@@ -624,3 +624,51 @@
   outline: 1px solid rgba(255, 255, 255, 0.35);
   outline-offset: 2px;
 }
+
+.background-settings-panel-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+}
+
+.background-settings-panel-button {
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  color: #e5e5ea;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  font-family: inherit;
+}
+
+.background-settings-panel-button:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.background-settings-panel-button:focus {
+  outline: 1px solid rgba(255, 255, 255, 0.35);
+  outline-offset: 2px;
+}
+
+.background-settings-panel-button-primary {
+  background: rgba(208, 164, 255, 0.08);
+  border-color: rgba(208, 164, 255, 0.55);
+  font-weight: 500;
+}
+
+.background-settings-panel-button-primary:hover {
+  background: rgba(208, 164, 255, 0.16);
+}
+
+.background-settings-panel-button-danger {
+  color: #f97373;
+  border-color: rgba(248, 113, 113, 0.7);
+}
+
+.background-settings-panel-button-danger:hover {
+  background: rgba(248, 113, 113, 0.12);
+  color: #fee2e2;
+}

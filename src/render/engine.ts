@@ -7,6 +7,8 @@ import type {
   BackgroundRenderModel,
   BackgroundSourceType,
 } from '../core/background/base/background.base.types';
+import type { MediaOverlayRenderModel } from '../core/background/media-overlay/media-overlay.types';
+import { mediaOverlayContract } from '../core/background/media-overlay/media-overlay.contract';
 import { getBackgroundContract } from '../core/background/registry';
 
 /**
@@ -69,15 +71,21 @@ export function renderBackground(
  * This function is source-agnostic and delegates to background contracts.
  */
 export function presetToRenderModel(preset: Preset): RenderModel {
-  const background = preset?.background;
+  const backgroundContainer = preset?.background;
 
-  if (!background || typeof background !== 'object') {
+  if (!backgroundContainer || typeof backgroundContainer !== 'object') {
     return DEFAULT_RENDER_MODEL;
   }
 
-  const sourceType = (background as { sourceType?: string }).sourceType as
-    | BackgroundSourceType
+  const baseConfig = (backgroundContainer as { base?: unknown }).base as
+    | { sourceType?: BackgroundSourceType }
     | undefined;
+
+  if (!baseConfig || typeof baseConfig !== 'object') {
+    return DEFAULT_RENDER_MODEL;
+  }
+
+  const sourceType = baseConfig.sourceType as BackgroundSourceType | undefined;
 
   if (!sourceType) {
     return DEFAULT_RENDER_MODEL;
@@ -89,17 +97,63 @@ export function presetToRenderModel(preset: Preset): RenderModel {
   }
 
   try {
-    const normalized = contract.normalize(background as any);
-    if (!contract.validate(normalized)) {
+    const normalizedBase = contract.normalize(baseConfig as any);
+    if (!contract.validate(normalizedBase)) {
       return DEFAULT_RENDER_MODEL;
     }
 
-    const resolved: BackgroundRenderModel = contract.toRenderModel(normalized as any);
+    const baseRenderModel: BackgroundRenderModel = contract.toRenderModel(
+      normalizedBase as any
+    );
+
+    let mediaOverlayRenderModel: MediaOverlayRenderModel | undefined;
+
+    const overlayConfig = (backgroundContainer as { mediaOverlay?: unknown }).mediaOverlay;
+    if (overlayConfig) {
+      try {
+        const normalizedOverlay = mediaOverlayContract.normalize(overlayConfig as any);
+        if (mediaOverlayContract.validate(normalizedOverlay)) {
+          mediaOverlayRenderModel = mediaOverlayContract.toRenderModel(normalizedOverlay);
+        }
+      } catch {
+        // On any overlay failure, ignore overlay and render base only
+        mediaOverlayRenderModel = undefined;
+      }
+    }
 
     return {
-      background: resolved,
+      background: baseRenderModel,
+      mediaOverlay: mediaOverlayRenderModel,
     };
   } catch {
     return DEFAULT_RENDER_MODEL;
   }
+}
+
+/**
+ * Computes render information for a media overlay on top of the base background.
+ * Returns null when no overlay is present.
+ *
+ * FAZ-3A:
+ * - Transform is carried through in the render model but not yet applied to CSS.
+ * - Visual transform application (x, y, scale) will be implemented in FAZ-3B
+ *   together with editor affordances, to avoid guessing coordinate semantics.
+ */
+export function renderMediaOverlay(
+  model: RenderModel,
+  _viewport: ViewportDimensions
+): {
+  primitive: 'image' | 'video';
+  src: string;
+} | null {
+  const overlay = model.mediaOverlay;
+
+  if (!overlay) {
+    return null;
+  }
+
+  return {
+    primitive: overlay.primitive,
+    src: overlay.src,
+  };
 }

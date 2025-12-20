@@ -1,7 +1,6 @@
 // Unified color and gradient picker component
 // Wraps react-best-gradient-color-picker for consistent usage across the app
 
-import React from 'react';
 import ColorPickerLib from 'react-best-gradient-color-picker';
 import './color-picker.css';
 

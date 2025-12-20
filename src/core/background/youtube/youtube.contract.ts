@@ -20,8 +20,9 @@ const FALLBACK_COLOR_BACKGROUND = {
 export const youtubeBackgroundContract: YoutubeBackgroundContract = {
   sourceType: 'youtube',
 
-  validate(): config is YoutubeBackgroundConfig {
-    return false;
+  validate(config: unknown): config is YoutubeBackgroundConfig {
+    // FAZ-2 stub: youtube backgrounds are not yet supported as a base source.
+    return false && !!config;
   },
 
   normalize(config: Partial<YoutubeBackgroundConfig>): YoutubeBackgroundConfig {
@@ -31,7 +32,8 @@ export const youtubeBackgroundContract: YoutubeBackgroundContract = {
     };
   },
 
-  toRenderModel(): typeof FALLBACK_COLOR_BACKGROUND {
+  toRenderModel(config: YoutubeBackgroundConfig): typeof FALLBACK_COLOR_BACKGROUND {
+    void config;
     return FALLBACK_COLOR_BACKGROUND;
   },
 };

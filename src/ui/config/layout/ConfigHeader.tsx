@@ -2,7 +2,6 @@
 
 import { LanguageSelector } from './LanguageSelector';
 import { FavoritePresetDropdown } from '../header/FavoritePresetDropdown';
-import { useTranslation } from '../../../i18n';
 import type { Preset } from '../../../core/preset/preset.types';
 
 interface ConfigHeaderProps {
@@ -20,8 +19,6 @@ interface ConfigHeaderProps {
  * Matches V1 layout and styling.
  */
 export function ConfigHeader({ onPresetManagerClick, onPresetApplied }: ConfigHeaderProps): JSX.Element {
-  const { t } = useTranslation();
-
   return (
     <header className="config-header">
       <div className="config-header-content">

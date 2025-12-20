@@ -9,11 +9,17 @@ import '../../shared/drawer/drawer.css';
 interface BackgroundSettingsPanelProps {
   color: string;
   onColorChange: (color: string) => void;
+  hasMediaOverlay: boolean;
+  onOpenBackgroundMediaModal: () => void;
+  onRemoveBackgroundMediaOverlay: () => void;
 }
 
 export function BackgroundSettingsPanel({
   color,
   onColorChange,
+  hasMediaOverlay,
+  onOpenBackgroundMediaModal,
+  onRemoveBackgroundMediaOverlay,
 }: BackgroundSettingsPanelProps): JSX.Element {
   const { t } = useTranslation();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -47,6 +53,29 @@ export function BackgroundSettingsPanel({
             title={t('backgroundColorLabel')}
             aria-label={t('backgroundColorLabel')}
           />
+        </div>
+        <div className="background-settings-panel-row">
+          <label className="background-settings-panel-label">
+            {t('backgroundMediaLabel')}
+          </label>
+          <div className="background-settings-panel-actions">
+            <button
+              type="button"
+              className="background-settings-panel-button background-settings-panel-button-primary"
+              onClick={onOpenBackgroundMediaModal}
+            >
+              {hasMediaOverlay ? t('backgroundMediaUpdate') : t('backgroundMediaAdd')}
+            </button>
+            {hasMediaOverlay && (
+              <button
+                type="button"
+                className="background-settings-panel-button background-settings-panel-button-danger"
+                onClick={onRemoveBackgroundMediaOverlay}
+              >
+                {t('backgroundMediaRemove')}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

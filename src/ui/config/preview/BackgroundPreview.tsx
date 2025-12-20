@@ -1,7 +1,7 @@
 // Background preview component
 
 import type { RenderModel } from '../../../render/model/render.types';
-import { renderBackground } from '../../../render/engine';
+import { renderBackground, renderMediaOverlay } from '../../../render/engine';
 import { DEFAULT_VIEWPORT } from '../../../render/viewport';
 
 interface BackgroundPreviewProps {
@@ -13,6 +13,12 @@ export function BackgroundPreview({ model }: BackgroundPreviewProps): JSX.Elemen
   const previewSize = 200;
 
   const backgroundStyle = renderBackground(model, {
+    width: previewSize,
+    height: previewSize,
+    isCircular: viewport.isCircular,
+  });
+
+  const overlay = renderMediaOverlay(model, {
     width: previewSize,
     height: previewSize,
     isCircular: viewport.isCircular,
@@ -35,7 +41,27 @@ export function BackgroundPreview({ model }: BackgroundPreviewProps): JSX.Elemen
           borderRadius: '50%',
           boxSizing: 'border-box',
         }}
-      />
+      >
+        {overlay && (
+          <div className="render-media-overlay">
+            {overlay.primitive === 'image' ? (
+              <img
+                className="render-media-overlay-media"
+                src={overlay.src}
+                alt=""
+              />
+            ) : (
+              <video
+                className="render-media-overlay-media"
+                src={overlay.src}
+                autoPlay
+                loop
+                muted
+              />
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -20,8 +20,9 @@ const FALLBACK_COLOR_BACKGROUND = {
 export const mediaUrlBackgroundContract: MediaUrlBackgroundContract = {
   sourceType: 'media-url',
 
-  validate(): config is MediaUrlBackgroundConfig {
-    return false;
+  validate(config: unknown): config is MediaUrlBackgroundConfig {
+    // FAZ-2 stub: media-url backgrounds are not yet supported as a base source.
+    return false && !!config;
   },
 
   normalize(config: Partial<MediaUrlBackgroundConfig>): MediaUrlBackgroundConfig {
@@ -31,7 +32,8 @@ export const mediaUrlBackgroundContract: MediaUrlBackgroundContract = {
     };
   },
 
-  toRenderModel(): typeof FALLBACK_COLOR_BACKGROUND {
+  toRenderModel(config: MediaUrlBackgroundConfig): typeof FALLBACK_COLOR_BACKGROUND {
+    void config;
     return FALLBACK_COLOR_BACKGROUND;
   },
 };

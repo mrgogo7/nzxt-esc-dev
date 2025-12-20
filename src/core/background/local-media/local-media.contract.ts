@@ -20,8 +20,10 @@ const FALLBACK_COLOR_BACKGROUND = {
 export const localMediaBackgroundContract: LocalMediaBackgroundContract = {
   sourceType: 'local-media',
 
-  validate(): config is LocalMediaBackgroundConfig {
-    return false;
+  validate(config: unknown): config is LocalMediaBackgroundConfig {
+    // FAZ-2 stub: local-media backgrounds are not yet supported as a base source.
+    // Parameter is referenced to satisfy noUnusedParameters while always returning false.
+    return false && !!config;
   },
 
   normalize(config: Partial<LocalMediaBackgroundConfig>): LocalMediaBackgroundConfig {
@@ -31,7 +33,8 @@ export const localMediaBackgroundContract: LocalMediaBackgroundContract = {
     };
   },
 
-  toRenderModel(): typeof FALLBACK_COLOR_BACKGROUND {
+  toRenderModel(config: LocalMediaBackgroundConfig): typeof FALLBACK_COLOR_BACKGROUND {
+    void config;
     return FALLBACK_COLOR_BACKGROUND;
   },
 };
