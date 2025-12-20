@@ -162,6 +162,66 @@ async function fetchTextDirect(url: string): Promise<string> {
   return await response.text();
 }
 
+function firstFulfilled<T>(promises: Promise<T>[]): Promise<T> {
+  return new Promise((resolve, reject) => {
+    if (promises.length === 0) {
+      reject(new Error('No fallback promises'));
+      return;
+    }
+
+    let pending = promises.length;
+    let settled = false;
+
+    for (const promise of promises) {
+      promise
+        .then((value) => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          resolve(value);
+        })
+        .catch(() => {
+          pending -= 1;
+          if (pending === 0 && !settled) {
+            reject(new Error('All fallback requests failed'));
+          }
+        });
+    }
+  });
+}
+
+async function fetchTextFromAllOrigins(url: string): Promise<string> {
+  const apiUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+  const response = await fetchWithTimeout(apiUrl, {}, FETCH_TIMEOUT_MS);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  const data = (await response.json()) as { contents?: string };
+  if (typeof data.contents === 'string' && data.contents.length > 0) {
+    return data.contents;
+  }
+  throw new Error('Empty allorigins response');
+}
+
+async function fetchTextFromCorsProxy(url: string): Promise<string> {
+  const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+  const response = await fetchWithTimeout(proxyUrl, {}, FETCH_TIMEOUT_MS);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  return await response.text();
+}
+
+async function fetchTextFromCodetabs(url: string): Promise<string> {
+  const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`;
+  const response = await fetchWithTimeout(proxyUrl, {}, FETCH_TIMEOUT_MS);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  return await response.text();
+}
+
 /**
  * Fetches text from a URL using a sequence of CORS-safe fallbacks.
  *
@@ -179,46 +239,15 @@ async function fetchTextWithFallback(url: string): Promise<string> {
     // ignore and try next
   }
 
-  // 2) allorigins.win JSON wrapper
   try {
-    const apiUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-    const response = await fetchWithTimeout(apiUrl, {}, FETCH_TIMEOUT_MS);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    const data = (await response.json()) as { contents?: string };
-    if (typeof data.contents === 'string' && data.contents.length > 0) {
-      return data.contents;
-    }
+    return await firstFulfilled([
+      fetchTextFromAllOrigins(url),
+      fetchTextFromCorsProxy(url),
+      fetchTextFromCodetabs(url),
+    ]);
   } catch {
-    // ignore and try next
+    throw new ResolveError('PINTEREST_FETCH_FAILED');
   }
-
-  // 3) corsproxy.io
-  try {
-    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
-    const response = await fetchWithTimeout(proxyUrl, {}, FETCH_TIMEOUT_MS);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    return await response.text();
-  } catch {
-    // ignore and try next
-  }
-
-  // 4) api.codetabs.com
-  try {
-    const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`;
-    const response = await fetchWithTimeout(proxyUrl, {}, FETCH_TIMEOUT_MS);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    return await response.text();
-  } catch {
-    // ignore
-  }
-
-  throw new ResolveError('PINTEREST_FETCH_FAILED');
 }
 
 /**
