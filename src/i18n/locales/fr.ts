@@ -117,4 +117,10 @@ export const fr = {
     'Vous pouvez saisir une URL directe d\'image ou de vidéo MP4. Les URL d\'épingle Pinterest et les URL de vidéo YouTube sont également prises en charge.',
   backgroundMediaUrlExamples:
     'Exemples:\n• https://****.com/medya.jpg or .gif or .mp4\n• https://pinterest.com/pin/123456789/\n• https://www.youtube.com/watch?v=xxxx',
+  backgroundMediaTransformScale: 'Redimensionner',
+  backgroundMediaTransformRotate: 'Tourner',
+  backgroundMediaTransformOffsetX: 'Décalage X',
+  backgroundMediaTransformOffsetY: 'Décalage Y',
+  backgroundMediaTransformReset: 'Réinitialiser',
+  backgroundMediaOverlayGuides: 'Guides de superposition',
 } as const;

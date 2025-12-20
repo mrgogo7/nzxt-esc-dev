@@ -122,4 +122,10 @@ export const tr = {
   backgroundMediaMenuCopy: 'Kopyala',
   backgroundMediaMenuPaste: 'Yapıştır',
   backgroundMediaMenuSelectAll: 'Tümünü Seç',
+  backgroundMediaTransformScale: 'Boyutlandır',
+  backgroundMediaTransformRotate: 'Döndür',
+  backgroundMediaTransformOffsetX: 'X Konumu',
+  backgroundMediaTransformOffsetY: 'Y Konumu',
+  backgroundMediaTransformReset: 'Sıfırla',
+  backgroundMediaOverlayGuides: 'Yerleşim Kılavuzları',
 } as const;

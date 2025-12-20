@@ -107,4 +107,10 @@ export const ja = {
   backgroundMediaUrlHint: '直接の画像またはMP4のURL:',
   backgroundMediaPinterestResolveRequired: '適用する前にPinterestのURLを解決してください。',
   backgroundMediaResolving: 'URLを解決しています…',
+  backgroundMediaTransformScale: 'サイズ変更',
+  backgroundMediaTransformRotate: '回転',
+  backgroundMediaTransformOffsetX: 'Xオフセット',
+  backgroundMediaTransformOffsetY: 'Yオフセット',
+  backgroundMediaTransformReset: 'リセット',
+  backgroundMediaOverlayGuides: 'オーバーレイガイド',
 } as const;

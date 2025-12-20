@@ -107,4 +107,10 @@ export const de = {
   backgroundMediaUrlHint: 'Direkte Bild- oder MP4-URL:',
   backgroundMediaPinterestResolveRequired: 'Bitte lösen Sie die Pinterest-URL, bevor Sie fortfahren.',
   backgroundMediaResolving: 'URL wird aufgelöst…',
+  backgroundMediaTransformScale: 'Größe ändern',
+  backgroundMediaTransformRotate: 'Drehen',
+  backgroundMediaTransformOffsetX: 'X-Offset',
+  backgroundMediaTransformOffsetY: 'Y-Offset',
+  backgroundMediaTransformReset: 'Zurücksetzen',
+  backgroundMediaOverlayGuides: 'Überlagerungsführungen',
 } as const;
