@@ -333,12 +333,11 @@ export function ConfigApp(): JSX.Element {
         transform.offsetY === 0 &&
         transform.rotateDeg === 0;
 
-      // Compute autoscale cover
+      // Compute autoscale so the media short edge fills the viewport short edge
       const viewport = getViewportDimensions();
-      const autoScaleCover = Math.max(
-        viewport.width / width,
-        viewport.height / height
-      );
+      const viewportShortEdge = Math.min(viewport.width, viewport.height);
+      const mediaShortEdge = Math.min(width, height);
+      const autoScaleShortEdge = viewportShortEdge / mediaShortEdge;
 
       // FAZ-4.2.1: Autoscale is baked into world dimensions, not transform.scale
       // When autoscale is computed:
@@ -358,7 +357,7 @@ export function ConfigApp(): JSX.Element {
             transform: isDefaultTransform
               ? {
                   ...transform,
-                  autoScale: autoScaleCover,
+                  autoScale: autoScaleShortEdge,
                   scale: 1, // User scale = 1 initially (autoscale baked into world size)
                 }
               : transform,
@@ -448,4 +447,3 @@ export function ConfigApp(): JSX.Element {
     </div>
   );
 }
-
