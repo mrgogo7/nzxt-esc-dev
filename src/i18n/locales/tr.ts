@@ -119,4 +119,7 @@ export const tr = {
     'Doğrudan bir görsel veya MP4 video URL\'si girebilirsiniz. Ayrıca Pinterest Pin URL\'leri ve YouTube video URL\'leri de desteklenmektedir.',
   backgroundMediaUrlExamples:
     'Örnekler:\n• https://****.com/medya.jpg or .gif or .mp4\n• https://pinterest.com/pin/123456789/\n• https://www.youtube.com/watch?v=xxxx',
+  backgroundMediaMenuCopy: 'Kopyala',
+  backgroundMediaMenuPaste: 'Yapıştır',
+  backgroundMediaMenuSelectAll: 'Tümünü Seç',
 } as const;

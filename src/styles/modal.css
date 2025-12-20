@@ -15,6 +15,7 @@
 
 /* Shell / Container */
 .modal-container {
+  position: relative;
   background-color: #101014;
   border-radius: 4px;
   border: 1px solid #252533;

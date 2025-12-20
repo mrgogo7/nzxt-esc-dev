@@ -17,6 +17,7 @@ import {
 } from '../../../core/background/media-overlay/media-overlay.resolve';
 import { FileImage, Link } from 'lucide-react';
 import { Alert } from '../alert';
+import { ContextMenu, type ContextMenuItem } from '../contextMenu';
 import '../../../styles/modal.css';
 
 type BackgroundMediaInternalState =
@@ -56,7 +57,10 @@ function renderModalContent(
   backgroundMediaUrlKind?: BackgroundMediaUrlKind | null,
   setBackgroundMediaUrlKind?: (kind: BackgroundMediaUrlKind | null) => void,
   isBackgroundMediaResolvingUrl?: boolean,
-  setIsBackgroundMediaResolvingUrl?: (value: boolean) => void
+  setIsBackgroundMediaResolvingUrl?: (value: boolean) => void,
+  backgroundMediaUrlMenuPosition?: { x: number; y: number } | null,
+  setBackgroundMediaUrlMenuPosition?: (pos: { x: number; y: number } | null) => void,
+  backgroundMediaUrlInputRef?: React.RefObject<HTMLInputElement>
 ): JSX.Element | null {
   if (!state.type || !state.props) {
     return null;
@@ -602,6 +606,132 @@ function renderModalContent(
         closeModal();
       };
 
+      const handleUrlInputContextMenu = (event: React.MouseEvent<HTMLInputElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (setBackgroundMediaUrlMenuPosition) {
+          const target = event.currentTarget as HTMLElement;
+          const rect = target.getBoundingClientRect();
+          // Get mouse position relative to the input element
+          const offsetX = event.clientX - rect.left;
+          const offsetY = event.clientY - rect.top;
+          // Position is relative to modal-container (which is position: relative)
+          // Find modal-container to calculate relative position
+          const modalContainer = target.closest('.modal-container') as HTMLElement;
+          if (modalContainer) {
+            const containerRect = modalContainer.getBoundingClientRect();
+            setBackgroundMediaUrlMenuPosition({
+              x: rect.left - containerRect.left + offsetX,
+              y: rect.top - containerRect.top + offsetY,
+            });
+          } else {
+            // Fallback: use viewport coordinates (should not happen)
+            setBackgroundMediaUrlMenuPosition({
+              x: rect.left + offsetX,
+              y: rect.top + offsetY,
+            });
+          }
+        }
+      };
+
+      const handleCopyUrl = async () => {
+        const input = backgroundMediaUrlInputRef?.current;
+        if (!input) return;
+
+        const selectedText = input.value.substring(input.selectionStart || 0, input.selectionEnd || 0);
+        const textToCopy = selectedText || input.value;
+
+        try {
+          await navigator.clipboard.writeText(textToCopy);
+        } catch {
+          // Fallback to execCommand
+          const textArea = document.createElement('textarea');
+          textArea.value = textToCopy;
+          textArea.style.position = 'fixed';
+          textArea.style.opacity = '0';
+          document.body.appendChild(textArea);
+          textArea.select();
+          try {
+            document.execCommand('copy');
+          } catch {
+            // Ignore
+          }
+          document.body.removeChild(textArea);
+        }
+      };
+
+      const handlePasteUrl = async () => {
+        const input = backgroundMediaUrlInputRef?.current;
+        if (!input || !setBackgroundMediaUrlInput) return;
+
+        try {
+          const text = await navigator.clipboard.readText();
+          const start = input.selectionStart || 0;
+          const end = input.selectionEnd || 0;
+          const currentValue = urlInput;
+          const newValue = currentValue.substring(0, start) + text + currentValue.substring(end);
+          setBackgroundMediaUrlInput(newValue);
+          
+          // Update URL kind
+          if (setBackgroundMediaUrlKind) {
+            setBackgroundMediaUrlKind(classifyBackgroundMediaUrl(newValue));
+          }
+          
+          // Update state
+          if (newValue.trim()) {
+            setBackgroundMediaState({
+              phase: 'selecting',
+              source: 'url',
+            });
+          } else {
+            setBackgroundMediaState({ phase: 'idle' });
+          }
+
+          // Set cursor position after paste
+          setTimeout(() => {
+            input.focus();
+            input.setSelectionRange(start + text.length, start + text.length);
+          }, 0);
+        } catch {
+          // Fallback to execCommand (limited support)
+          try {
+            input.focus();
+            document.execCommand('paste');
+          } catch {
+            // Ignore
+          }
+        }
+      };
+
+      const handleSelectAllUrl = () => {
+        const input = backgroundMediaUrlInputRef?.current;
+        if (input) {
+          input.focus();
+          input.select();
+        }
+      };
+
+      const urlMenuItems: ContextMenuItem[] = [
+        {
+          key: 'copy',
+          label: t('backgroundMediaMenuCopy'),
+          onClick: handleCopyUrl,
+          disabled: !urlInput || urlInput.trim().length === 0,
+        },
+        {
+          key: 'paste',
+          label: t('backgroundMediaMenuPaste'),
+          onClick: handlePasteUrl,
+          disabled: !navigator.clipboard || typeof navigator.clipboard.readText !== 'function',
+        },
+        {
+          key: 'selectAll',
+          label: t('backgroundMediaMenuSelectAll'),
+          onClick: handleSelectAllUrl,
+          disabled: !urlInput || urlInput.trim().length === 0,
+        },
+      ];
+
       const isCompact = currentSource !== null;
       const existingSourceType = props.existingLocalFileName ? 'local' : props.existingUrl ? 'url' : null;
       const showLocalReplaceWarning = props.hasExistingOverlay && currentSource === 'local' && selectedFile !== null;
@@ -704,6 +834,7 @@ function renderModalContent(
                 </div>
                 <div className="background-media-modal-url-row">
                   <input
+                    ref={backgroundMediaUrlInputRef}
                     id="background-media-url-input"
                     type="text"
                     className="modal-input background-media-modal-url-input"
@@ -721,8 +852,17 @@ function renderModalContent(
                         setBackgroundMediaState({ phase: 'idle' });
                       }
                     }}
+                    onContextMenu={handleUrlInputContextMenu}
                   />
                 </div>
+                {backgroundMediaUrlMenuPosition && setBackgroundMediaUrlMenuPosition && (
+                  <ContextMenu
+                    x={backgroundMediaUrlMenuPosition.x}
+                    y={backgroundMediaUrlMenuPosition.y}
+                    items={urlMenuItems}
+                    onClose={() => setBackgroundMediaUrlMenuPosition(null)}
+                  />
+                )}
                 
                 {showUrlReplaceWarning && (
                   <Alert variant="warning">
@@ -800,6 +940,9 @@ export function ModalRoot(): JSX.Element | null {
     React.useState<BackgroundMediaUrlKind | null>(null);
   const [isBackgroundMediaResolvingUrl, setIsBackgroundMediaResolvingUrl] =
     React.useState<boolean>(false);
+  const [backgroundMediaUrlMenuPosition, setBackgroundMediaUrlMenuPosition] =
+    React.useState<{ x: number; y: number } | null>(null);
+  const backgroundMediaUrlInputRef = React.useRef<HTMLInputElement>(null);
 
   // Reset rename value when modal opens/closes
   React.useEffect(() => {
@@ -845,6 +988,7 @@ export function ModalRoot(): JSX.Element | null {
       setBackgroundMediaSelectedFile(null);
       setBackgroundMediaUrlKind(null);
       setIsBackgroundMediaResolvingUrl(false);
+      setBackgroundMediaUrlMenuPosition(null);
       return;
     }
 
@@ -926,7 +1070,10 @@ export function ModalRoot(): JSX.Element | null {
     backgroundMediaUrlKind,
     setBackgroundMediaUrlKind,
     isBackgroundMediaResolvingUrl,
-    setIsBackgroundMediaResolvingUrl
+    setIsBackgroundMediaResolvingUrl,
+    backgroundMediaUrlMenuPosition,
+    setBackgroundMediaUrlMenuPosition,
+    backgroundMediaUrlInputRef
   );
 
   if (!content) {

@@ -1,0 +1,41 @@
+/* Context Menu Styles */
+
+.context-menu {
+  position: absolute;
+  background-color: #101014;
+  border: 1px solid #252533;
+  border-radius: 4px;
+  padding: 4px;
+  z-index: 10001; /* Above modal backdrop (10000) */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  min-width: 120px;
+}
+
+.context-menu-item {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: #e5e5ea;
+  font-size: 13px;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background-color 0.1s ease;
+}
+
+.context-menu-item:hover:not(:disabled) {
+  background-color: #252533;
+}
+
+.context-menu-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.context-menu-item:focus {
+  outline: none;
+  background-color: #252533;
+}

@@ -119,4 +119,7 @@ export const en = {
     'You can enter a direct image or MP4 video URL. Pinterest Pin URLs and YouTube video URLs are also supported.',
   backgroundMediaUrlExamples:
     'Examples:\n• https://****.com/medya.jpg or .gif or .mp4\n• https://pinterest.com/pin/123456789/\n• https://www.youtube.com/watch?v=xxxx',
+  backgroundMediaMenuCopy: 'Copy',
+  backgroundMediaMenuPaste: 'Paste',
+  backgroundMediaMenuSelectAll: 'Select All',
 } as const;
