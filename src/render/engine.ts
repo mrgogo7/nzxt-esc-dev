@@ -160,7 +160,7 @@ export function renderMediaOverlay(
 
   // FAZ-4.2.1: World dimensions with autoscale baked in
   // If intrinsic is available, apply autoscale to world size
-  // This produces cover-like initial placement (short edge fills viewport)
+  // This produces short-edge-fit initial placement based on precomputed autoscale
   let worldWidth: number;
   let worldHeight: number;
   const hasIntrinsic = intrinsic !== undefined;
