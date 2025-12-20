@@ -12,13 +12,25 @@ interface BackgroundPreviewProps {
   showOverlayGuides?: boolean;
 }
 
+/**
+ * Background preview component.
+ *
+ * Architecture:
+ * - Preview is a visual camera model: it does NOT produce transform math.
+ * - All transform math is done in LCD viewport space (e.g. 640x640).
+ * - Preview renders at LCD viewport size, then scales down visually via CSS.
+ * - Preview size must NEVER affect transform calculations.
+ * - Uses the same render path as Kraken (renderBackground, renderMediaOverlay).
+ * - Uses the same CSS classes as Kraken (render-background, render-media-overlay, etc.).
+ */
 export function BackgroundPreview({
   model,
   onIntrinsicSizeAvailable,
   showOverlayGuides = false,
 }: BackgroundPreviewProps): JSX.Element {
-  // FAZ-4.2.1 Viewport Unification: Use LCD viewport for all transform math
-  // Preview scaling is visual only (CSS), not mathematical
+  // All transform math is done in LCD viewport space (e.g. 640x640).
+  // Preview is a visual camera scaled via CSS.
+  // Preview size must NEVER affect transform calculations.
   const lcdViewport = getViewportDimensions();
   const previewSize = 250;
   const previewScale = previewSize / lcdViewport.width;
@@ -81,7 +93,8 @@ export function BackgroundPreview({
           overflow: 'hidden',
         }}
       >
-        {/* Inner container: rendered at LCD size, scaled down visually */}
+        {/* Inner container: rendered at LCD viewport size, scaled down visually via CSS */}
+        {/* This is the camera model - CSS transform does NOT affect render math */}
         <div
           style={{
             width: `${lcdViewport.width}px`,
@@ -130,6 +143,7 @@ export function BackgroundPreview({
                       onLoadedMetadata={handleVideoLoadedMetadata}
                     />
                   )}
+                  {/* Overlay guides: UI-only, never rendered in Kraken, not persisted to preset */}
                   {showOverlayGuides && (
                     <>
                       {/* Crosshair guide - follows world transform */}

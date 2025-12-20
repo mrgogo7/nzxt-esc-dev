@@ -258,8 +258,11 @@ export function BackgroundSettingsPanel({
                 onChange={(value) =>
                   onTransformChange({ ...transform, offsetX: value })
                 }
-                min={-1}
-                max={1}
+                onReset={() =>
+                  onTransformChange({ ...transform, offsetX: 0 })
+                }
+                min={-2}
+                max={2}
                 step={0.01}
                 decimals={2}
               />
@@ -269,79 +272,14 @@ export function BackgroundSettingsPanel({
                 onChange={(value) =>
                   onTransformChange({ ...transform, offsetY: value })
                 }
-                min={-1}
-                max={1}
+                onReset={() =>
+                  onTransformChange({ ...transform, offsetY: 0 })
+                }
+                min={-2}
+                max={2}
                 step={0.01}
                 decimals={2}
               />
-              <div className="background-settings-panel-row">
-                <label className="background-settings-panel-label">
-                  {t('backgroundMediaTransformReset')}
-                </label>
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: '8px',
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() =>
-                      // FAZ-4.2.1: Reset scale = 1 (user scale), not autoScale
-                      // Autoscale is baked into world dimensions, so reset returns to natural cover state
-                      onTransformChange({ ...transform, scale: 1 })
-                    }
-                    style={{
-                      padding: '4px 12px',
-                      backgroundColor: 'transparent',
-                      border: '1px solid #2a2a2f',
-                      borderRadius: '4px',
-                      color: '#fff',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                    }}
-                    title={t('backgroundMediaTransformReset')}
-                  >
-                    Reset Scale
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onTransformChange({ ...transform, rotateDeg: 0 })
-                    }
-                    style={{
-                      padding: '4px 12px',
-                      backgroundColor: 'transparent',
-                      border: '1px solid #2a2a2f',
-                      borderRadius: '4px',
-                      color: '#fff',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                    }}
-                    title={t('backgroundMediaTransformReset')}
-                  >
-                    Reset Rotate
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onTransformChange({ ...transform, offsetX: 0, offsetY: 0 })
-                    }
-                    style={{
-                      padding: '4px 12px',
-                      backgroundColor: 'transparent',
-                      border: '1px solid #2a2a2f',
-                      borderRadius: '4px',
-                      color: '#fff',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                    }}
-                    title={t('backgroundMediaTransformReset')}
-                  >
-                    Reset Offset
-                  </button>
-                </div>
-              </div>
             </div>
             {onOverlayGuidesChange && (
               <div

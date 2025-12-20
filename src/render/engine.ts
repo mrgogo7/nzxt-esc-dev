@@ -134,7 +134,7 @@ export function presetToRenderModel(preset: Preset): RenderModel {
  * Computes render information for a media overlay on top of the base background.
  * Returns null when no overlay is present.
  *
- * FAZ-4.1:
+ * Architecture:
  * - Media world preserves intrinsic aspect ratio when available.
  * - Transform is applied to the media world, not the media element.
  * - Viewport acts as a mask (overflow hidden).
@@ -158,16 +158,14 @@ export function renderMediaOverlay(
 
   const { transform, intrinsic } = overlay;
 
-  // FAZ-4.2.1: World dimensions with autoscale baked in
+  // World dimensions with autoscale baked in
   // If intrinsic is available, apply autoscale to world size
-  // This produces short-edge-fit initial placement based on precomputed autoscale
+  // worldSize = intrinsicSize * autoScale
   let worldWidth: number;
   let worldHeight: number;
   const hasIntrinsic = intrinsic !== undefined;
 
   if (intrinsic) {
-    // Autoscale is baked into world dimensions
-    // worldSize = intrinsicSize * autoScale
     worldWidth = intrinsic.width * transform.autoScale;
     worldHeight = intrinsic.height * transform.autoScale;
   } else {
@@ -176,18 +174,22 @@ export function renderMediaOverlay(
     worldHeight = viewport.height;
   }
 
-  // FAZ-4.2.3: Center-anchored world transform
-  // World is centered via CSS positioning (left: 50%, top: 50%, margin), NOT transform
-  // Transform string contains ONLY: translate(tx, ty) rotate(deg) scale(userScale)
-  // Applied right-to-left: scale → rotate → translate
-  // This guarantees center-locked operations and no drift
+  // Transform chain architecture:
+  // World is centered via CSS positioning (left: 50%, top: 50% + negative margins)
+  // Transform applies ONLY:
+  // - user scale
+  // - rotation
+  // - viewport-relative offset
+  //
+  // No centering translate in transform chain.
+  // Autoscale is baked into world dimensions.
 
-  // Offset in viewport pixels (not scaled)
+  // Offset in viewport pixels (normalized -2..+2 range, not scaled)
   const tx = transform.offsetX * (viewport.width / 2);
   const ty = transform.offsetY * (viewport.height / 2);
 
   // Transform order (CSS applies right-to-left):
-  // scale(userScale) → center-locked zoom (user scale only, autoscale already in world size)
+  // scale(userScale) → user scale only (autoscale already in world size)
   // rotate(deg) → rotate around viewport center
   // translate(tx, ty) → apply offset in viewport space (not scaled)
   //
@@ -196,7 +198,7 @@ export function renderMediaOverlay(
   // - Rotate pivots at viewport center (via CSS positioning, not transform)
   // - Offset remains screen-relative
   // - Effective visual scale = autoScale (in world) * userScale (in transform)
-  const userScale = transform.scale; // transform.scale is user scale only (autoscale baked into world)
+  const userScale = transform.scale;
   const worldTransform = `translate(${tx}px, ${ty}px) rotate(${transform.rotateDeg}deg) scale(${userScale})`;
 
   return {

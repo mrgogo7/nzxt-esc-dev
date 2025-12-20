@@ -6,11 +6,10 @@
  * Coordinates are numeric and interpreted in a viewport-relative way
  * by the render layer (no browser APIs here).
  *
- * FAZ-4:
  * - scale: uniform scale factor (aspect-ratio locked, > 0)
  * - autoScale: reset reference scale (computed from intrinsic size, > 0)
- * - offsetX: horizontal offset (clamp -1..1)
- * - offsetY: vertical offset (clamp -1..1)
+ * - offsetX: horizontal offset (clamp -2..2)
+ * - offsetY: vertical offset (clamp -2..2)
  * - rotateDeg: rotation in degrees (clamp -180..180)
  */
 export interface MediaOverlayTransform {
@@ -23,7 +22,7 @@ export interface MediaOverlayTransform {
 
 /**
  * Intrinsic dimensions of media (width and height in pixels).
- * FAZ-4.1: Persisted metadata for proper aspect ratio preservation.
+ * Persisted metadata for proper aspect ratio preservation.
  */
 export interface MediaIntrinsic {
   width: number;
@@ -57,7 +56,7 @@ export interface LocalMediaConfig {
    */
   mediaId: string;
   /**
-   * FAZ-4.1: Intrinsic dimensions of the media (optional).
+   * Intrinsic dimensions of the media (optional).
    * If present, used to preserve aspect ratio in render.
    */
   intrinsic?: MediaIntrinsic;
@@ -73,7 +72,7 @@ export interface UrlMediaConfig {
    */
   url: string;
   /**
-   * FAZ-4.1: Intrinsic dimensions of the media (optional).
+   * Intrinsic dimensions of the media (optional).
    * If present, used to preserve aspect ratio in render.
    */
   intrinsic?: MediaIntrinsic;
@@ -127,7 +126,7 @@ export interface MediaOverlayRenderModel {
    */
   transform: MediaOverlayTransform;
   /**
-   * FAZ-4.1: Intrinsic dimensions if available.
+   * Intrinsic dimensions if available.
    */
   intrinsic?: MediaIntrinsic;
 }

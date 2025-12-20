@@ -78,7 +78,7 @@ function resolvePrimitive(media: LocalMediaConfig | UrlMediaConfig):
 }
 
 /**
- * Background media overlay contract implementation for FAZ-3A.
+ * Background media overlay contract implementation.
  */
 export const mediaOverlayContract: MediaOverlayContract = {
   validate(config: unknown): config is BackgroundMediaOverlayConfig {
@@ -92,7 +92,7 @@ export const mediaOverlayContract: MediaOverlayContract = {
       return false;
     }
 
-    // FAZ-4: Validate transform values are finite and scale/autoScale > 0
+    // Validate transform values are finite and scale/autoScale > 0
     const transform = overlay.transform;
     if (transform) {
       if (
@@ -129,7 +129,7 @@ export const mediaOverlayContract: MediaOverlayContract = {
         throw new Error('Invalid media overlay config: missing local media');
       }
 
-      // FAZ-4.1: Normalize intrinsic if present
+      // Normalize intrinsic if present
       let intrinsic: { width: number; height: number } | undefined;
       if (media.intrinsic) {
         const i = media.intrinsic;
@@ -168,7 +168,7 @@ export const mediaOverlayContract: MediaOverlayContract = {
         throw new Error('Invalid media overlay config: missing URL media');
       }
 
-      // FAZ-4.1: Normalize intrinsic if present
+      // Normalize intrinsic if present
       let intrinsic: { width: number; height: number } | undefined;
       if (media.intrinsic) {
         const i = media.intrinsic;

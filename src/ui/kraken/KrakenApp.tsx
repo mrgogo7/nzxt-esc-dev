@@ -132,6 +132,11 @@ export function KrakenApp(): JSX.Element {
     );
   }
 
+  // Render parity with Preview:
+  // - Uses the same render functions (renderBackground, renderMediaOverlay)
+  // - Uses the same CSS classes (render-background, render-media-overlay, render-media-world, render-media-overlay-media)
+  // - Uses the same viewport dimensions
+  // - Produces pixel-identical output to Preview (Preview is just a CSS-scaled camera view)
   const backgroundStyle = renderBackground(model, viewport);
   const overlay = renderMediaOverlay(model, viewport);
 

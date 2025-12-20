@@ -15,7 +15,7 @@ import type {
  * This is a SHAPE check used by storage layer; it does not
  * enforce semantic ranges.
  *
- * FAZ-4: validates all five transform fields.
+ * Validates all five transform fields: scale, autoScale, offsetX, offsetY, rotateDeg.
  */
 export function isValidMediaOverlayTransformShape(
   transform: unknown
@@ -94,7 +94,7 @@ function isValidLocalMediaConfigShape(media: unknown): media is LocalMediaConfig
     return false;
   }
 
-  // FAZ-4.1: Validate intrinsic if present
+  // Validate intrinsic if present
   if (m.intrinsic !== undefined && !isValidMediaIntrinsicShape(m.intrinsic)) {
     return false;
   }
@@ -117,7 +117,7 @@ function isValidUrlMediaConfigShape(media: unknown): media is UrlMediaConfig {
     return false;
   }
 
-  // FAZ-4.1: Validate intrinsic if present
+  // Validate intrinsic if present
   if (m.intrinsic !== undefined && !isValidMediaIntrinsicShape(m.intrinsic)) {
     return false;
   }

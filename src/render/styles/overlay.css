@@ -6,8 +6,11 @@
   pointer-events: none;
 }
 
-/* FAZ-4.1: Media world container preserves intrinsic aspect ratio */
-/* FAZ-4.2.3: Center-anchored world positioning (left:50%, top:50% + margin) */
+/* Media world container:
+ * - Preserves intrinsic aspect ratio when available
+ * - Center-anchored positioning (left: 50%, top: 50% + negative margins)
+ * - Transform origin at center for rotation/scale operations
+ */
 .render-media-world {
   position: absolute;
   left: 50%;
@@ -15,10 +18,12 @@
   transform-origin: center center;
 }
 
-/* FAZ-4.2.8: Media visual size = World size (FINAL FIX) */
-/* Media element MUST visually fill the world container exactly */
-/* World geometry already guarantees correct aspect ratio */
-/* Media must NOT use intrinsic sizing - use world dimensions */
+/* Media element:
+ * - Visually fills the world container exactly (width: 100%, height: 100%)
+ * - World geometry already guarantees correct aspect ratio
+ * - Media element intrinsic size is NOT used for rendering
+ * - Media element does NOT re-fit based on intrinsic dimensions
+ */
 .render-media-overlay-media {
   display: block;
   width: 100%;

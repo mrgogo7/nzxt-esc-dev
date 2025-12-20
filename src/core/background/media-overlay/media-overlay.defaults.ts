@@ -5,7 +5,6 @@ import type { MediaOverlayTransform, BackgroundMediaOverlayConfig } from './medi
 /**
  * Default transform for new media overlays.
  *
- * FAZ-4:
  * - scale: 1 (no scaling)
  * - autoScale: 1 (no autoscale computed yet)
  * - offsetX: 0 (centered)
@@ -24,11 +23,11 @@ export const DEFAULT_MEDIA_OVERLAY_TRANSFORM: MediaOverlayTransform = {
  * Normalizes a potentially partial transform into a full transform,
  * filling missing fields with defaults.
  *
- * FAZ-4 normalization rules:
+ * Normalization rules:
  * - Fill missing fields with defaults
  * - Replace NaN / Infinity with defaults
  * - Clamp:
- *   - offsetX / offsetY → [-1, 1]
+ *   - offsetX / offsetY → [-2, 2]
  *   - rotateDeg → [-180, 180]
  *   - scale / autoScale → > 0 (clamp to minimum 0.01)
  */
@@ -55,12 +54,12 @@ export function normalizeMediaOverlayTransform(
 
   const offsetX =
     typeof transform.offsetX === 'number' && Number.isFinite(transform.offsetX)
-      ? Math.max(-1, Math.min(1, transform.offsetX))
+      ? Math.max(-2, Math.min(2, transform.offsetX))
       : DEFAULT_MEDIA_OVERLAY_TRANSFORM.offsetX;
 
   const offsetY =
     typeof transform.offsetY === 'number' && Number.isFinite(transform.offsetY)
-      ? Math.max(-1, Math.min(1, transform.offsetY))
+      ? Math.max(-2, Math.min(2, transform.offsetY))
       : DEFAULT_MEDIA_OVERLAY_TRANSFORM.offsetY;
 
   const rotateDeg =
