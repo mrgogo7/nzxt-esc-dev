@@ -8,9 +8,54 @@ import { getViewportDimensions } from '../../render/viewport';
 import { startNzxtMonitoring } from '../../platform/nzxtApi';
 import { DebugMonitoringOverlay } from './debug/DebugMonitoringOverlay';
 import type { RenderModel } from '../../render/model/render.types';
+import type { Preset } from '../../core/preset/preset.types';
+import { localMediaResolver } from '../../storage/localMediaResolver';
 import '../../render/styles/background.css';
 import '../../render/styles/overlay.css';
 import '../../styles/kraken.css';
+
+/**
+ * Creates a render input from a preset by resolving local media to objectURLs.
+ * This is an ephemeral object for render only - NOT persisted.
+ * Does NOT mutate the original preset.
+ */
+async function createResolvedRenderInput(preset: Preset): Promise<Preset> {
+  const overlay = preset.background.mediaOverlay;
+
+  // If no overlay or not local media, return as-is
+  if (!overlay || overlay.source !== 'local' || !overlay.media.mediaId) {
+    return preset;
+  }
+
+  // Resolve mediaId to objectURL
+  const objectURL = await localMediaResolver.resolveMediaId(overlay.media.mediaId);
+
+  // If resolution failed, return preset without overlay (for render)
+  if (!objectURL) {
+    return {
+      ...preset,
+      background: {
+        ...preset.background,
+        mediaOverlay: undefined,
+      },
+    };
+  }
+
+  // Create shallow clone with mediaId replaced by objectURL
+  return {
+    ...preset,
+    background: {
+      ...preset.background,
+      mediaOverlay: {
+        ...overlay,
+        media: {
+          ...overlay.media,
+          mediaId: objectURL, // Replace stable ID with objectURL for render
+        },
+      },
+    },
+  };
+}
 
 export function KrakenApp(): JSX.Element {
   const [model, setModel] = useState<RenderModel | null>(null);
@@ -18,24 +63,30 @@ export function KrakenApp(): JSX.Element {
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    const state = loadActivePresetState();
-    const activePreset = state.presets[state.activePresetId];
-    
-    if (activePreset) {
-      const renderModel = presetToRenderModel(activePreset);
-      setModel(renderModel);
-      setIsInitialized(true);
+    const initialize = async () => {
+      const state = loadActivePresetState();
+      const activePreset = state.presets[state.activePresetId];
+      
+      if (activePreset) {
+        // Resolve local media before rendering
+        const resolvedPreset = await createResolvedRenderInput(activePreset);
+        const renderModel = presetToRenderModel(resolvedPreset);
+        setModel(renderModel);
+        setIsInitialized(true);
 
-      const color = activePreset.background.base.color;
-      // CSS variables don't support gradients, so only set for solid colors
-      if (
-        color &&
-        !color.startsWith('linear-gradient(') &&
-        !color.startsWith('radial-gradient(')
-      ) {
-        document.documentElement.style.setProperty('--kraken-bg-color', color);
+        const color = activePreset.background.base.color;
+        // CSS variables don't support gradients, so only set for solid colors
+        if (
+          color &&
+          !color.startsWith('linear-gradient(') &&
+          !color.startsWith('radial-gradient(')
+        ) {
+          document.documentElement.style.setProperty('--kraken-bg-color', color);
+        }
       }
-    }
+    };
+
+    initialize();
 
     const unsubscribe = sessionBus.subscribeActivePreset((snapshot) => {
       setModel(snapshot);
@@ -55,6 +106,8 @@ export function KrakenApp(): JSX.Element {
 
     return () => {
       unsubscribe();
+      // Cleanup: revoke all objectURLs on unmount
+      localMediaResolver.revokeAll();
     };
   }, []);
 

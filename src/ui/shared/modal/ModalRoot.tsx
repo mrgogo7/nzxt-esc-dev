@@ -9,6 +9,7 @@ import type {
   LocalMediaConfig,
 } from '../../../core/background/media-overlay/media-overlay.types';
 import { mediaOverlayContract } from '../../../core/background/media-overlay/media-overlay.contract';
+import { saveLocalMedia } from '../../../storage/local';
 import {
   resolveBackgroundMediaFromUrl,
   classifyBackgroundMediaUrl,
@@ -428,7 +429,7 @@ function renderModalContent(
         setIsBackgroundMediaResolvingUrl(false);
       };
 
-      const handleFileChange: React.ChangeEventHandler<HTMLInputElement> = (event) => {
+      const handleFileChange: React.ChangeEventHandler<HTMLInputElement> = async (event) => {
         const file = event.target.files?.[0] ?? null;
 
         // Allow re-selecting the same input
@@ -463,27 +464,35 @@ function renderModalContent(
           return;
         }
 
-        const mediaConfig: LocalMediaConfig = {
-          type: 'local',
-          fileName: file.name,
-          fileType: file.type || 'application/octet-stream',
-          fileSize: file.size,
-          // For FAZ-3B, mediaId is a blob URL treated as an opaque string.
-          mediaId: URL.createObjectURL(file),
-        };
+        // Show loading state while saving to IndexedDB
+        setBackgroundMediaSelectedFile({
+          name: file.name,
+          size: file.size,
+          type: file.type,
+        });
+        setBackgroundMediaState({
+          phase: 'selecting',
+          source: 'local',
+        });
 
         try {
+          // Save file to IndexedDB and get stable mediaId
+          const { mediaId, fileName, fileType, fileSize } = await saveLocalMedia(file);
+
+          const mediaConfig: LocalMediaConfig = {
+            type: 'local',
+            fileName,
+            fileType,
+            fileSize,
+            mediaId, // Stable ID from IndexedDB, not blob URL
+          };
+
           const normalized = mediaOverlayContract.normalize({
             source: 'local',
             media: mediaConfig,
           } as Partial<BackgroundMediaOverlayConfig>);
 
           if (!mediaOverlayContract.validate(normalized)) {
-            setBackgroundMediaSelectedFile({
-              name: file.name,
-              size: file.size,
-              type: file.type,
-            });
             setBackgroundMediaState({
               phase: 'error',
               message: t('backgroundMediaInvalidSource'),
@@ -491,21 +500,12 @@ function renderModalContent(
             return;
           }
 
-          setBackgroundMediaSelectedFile({
-            name: file.name,
-            size: file.size,
-            type: file.type,
-          });
           setBackgroundMediaState({
             phase: 'resolved',
             overlay: normalized,
           });
-        } catch {
-          setBackgroundMediaSelectedFile({
-            name: file.name,
-            size: file.size,
-            type: file.type,
-          });
+        } catch (error) {
+          console.error('Failed to save local media:', error);
           setBackgroundMediaState({
             phase: 'error',
             message: t('backgroundMediaInvalidSource'),

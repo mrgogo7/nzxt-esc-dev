@@ -1,1 +1,4 @@
 /node_modules
+/.cursor
+.cursor/rules.zip
+EXPORT_IMPORT_V2_DESIGN.md

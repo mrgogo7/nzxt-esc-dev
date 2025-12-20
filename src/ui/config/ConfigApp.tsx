@@ -12,31 +12,104 @@ import { BackgroundPreview } from './preview/BackgroundPreview';
 import { BackgroundSettingsPanel } from './panels/BackgroundSettingsPanel';
 import { PresetManagerPanel } from './panels/PresetManagerPanel';
 import { ConfigHeader } from './layout/ConfigHeader';
+import { localMediaResolver } from '../../storage/localMediaResolver';
+import { createDefaultPreset } from '../../core/preset/preset.defaults';
 import '../../render/styles/background.css';
 import '../../render/styles/overlay.css';
 import '../../styles/config.css';
 
+/**
+ * Creates a render input from a preset by resolving local media to objectURLs.
+ * This is an ephemeral object for render only - NOT persisted.
+ * Does NOT mutate the original preset.
+ */
+async function createResolvedRenderInput(preset: Preset): Promise<Preset> {
+  const overlay = preset.background.mediaOverlay;
+
+  // If no overlay or not local media, return as-is
+  if (!overlay || overlay.source !== 'local' || !overlay.media.mediaId) {
+    return preset;
+  }
+
+  // Resolve mediaId to objectURL
+  const objectURL = await localMediaResolver.resolveMediaId(overlay.media.mediaId);
+
+  // If resolution failed, return preset without overlay (for render)
+  if (!objectURL) {
+    return {
+      ...preset,
+      background: {
+        ...preset.background,
+        mediaOverlay: undefined,
+      },
+    };
+  }
+
+  // Create shallow clone with mediaId replaced by objectURL
+  return {
+    ...preset,
+    background: {
+      ...preset.background,
+      mediaOverlay: {
+        ...overlay,
+        media: {
+          ...overlay.media,
+          mediaId: objectURL, // Replace stable ID with objectURL for render
+        },
+      },
+    },
+  };
+}
+
 export function ConfigApp(): JSX.Element {
   const { t } = useTranslation();
   const [preset, setPreset] = useState<Preset | null>(null);
+  const [resolvedRenderModel, setResolvedRenderModel] = useState(
+    presetToRenderModel(createDefaultPreset())
+  );
   const [isInitialized, setIsInitialized] = useState(false);
   const [isPresetManagerOpen, setIsPresetManagerOpen] = useState(false);
   const { openModal } = useModal();
 
   useEffect(() => {
-    const state = loadActivePresetState();
-    const activePreset = state.presets[state.activePresetId];
-    
-    if (activePreset) {
-      setPreset(activePreset);
-      setIsInitialized(true);
+    const initialize = async () => {
+      const state = loadActivePresetState();
+      const activePreset = state.presets[state.activePresetId];
       
-      const renderModel = presetToRenderModel(activePreset);
-      sessionBus.publishActivePreset(renderModel);
-    }
+      if (activePreset) {
+        setPreset(activePreset);
+        setIsInitialized(true);
+        
+        // Resolve local media before rendering
+        const resolvedPreset = await createResolvedRenderInput(activePreset);
+        const renderModel = presetToRenderModel(resolvedPreset);
+        setResolvedRenderModel(renderModel);
+        sessionBus.publishActivePreset(renderModel);
+      }
+    };
+
+    initialize();
+
+    // Cleanup: revoke all objectURLs on unmount
+    return () => {
+      localMediaResolver.revokeAll();
+    };
   }, []);
 
-  const handleColorChange = useCallback((color: string) => {
+  // Update resolved render model when preset changes
+  useEffect(() => {
+    if (!preset) return;
+
+    const updateRenderModel = async () => {
+      const resolvedPreset = await createResolvedRenderInput(preset);
+      const renderModel = presetToRenderModel(resolvedPreset);
+      setResolvedRenderModel(renderModel);
+    };
+
+    updateRenderModel();
+  }, [preset]);
+
+  const handleColorChange = useCallback(async (color: string) => {
     if (!preset) return;
 
     const updatedPreset: Preset = {
@@ -54,18 +127,25 @@ export function ConfigApp(): JSX.Element {
     setPreset(updatedPreset);
     savePreset(updatedPreset);
 
-    const renderModel = presetToRenderModel(updatedPreset);
-    sessionBus.publishActivePreset(renderModel);
+      // Resolve local media before rendering
+      const resolvedPreset = await createResolvedRenderInput(updatedPreset);
+      const renderModel = presetToRenderModel(resolvedPreset);
+      setResolvedRenderModel(renderModel);
+      sessionBus.publishActivePreset(renderModel);
   }, [preset]);
 
-  const handlePresetApplied = useCallback((appliedPreset: Preset) => {
+  const handlePresetApplied = useCallback(async (appliedPreset: Preset) => {
     setPreset(appliedPreset);
-    const renderModel = presetToRenderModel(appliedPreset);
+    
+    // Resolve local media before rendering
+    const resolvedPreset = await createResolvedRenderInput(appliedPreset);
+    const renderModel = presetToRenderModel(resolvedPreset);
+    setResolvedRenderModel(renderModel);
     sessionBus.publishActivePreset(renderModel);
   }, []);
 
   const handleBackgroundMediaOverlayApply = useCallback(
-    (overlay: BackgroundMediaOverlayConfig) => {
+    async (overlay: BackgroundMediaOverlayConfig) => {
       if (!preset) {
         return;
       }
@@ -81,15 +161,26 @@ export function ConfigApp(): JSX.Element {
       setPreset(updatedPreset);
       savePreset(updatedPreset);
 
-      const renderModel = presetToRenderModel(updatedPreset);
+      // Resolve local media before rendering
+      const resolvedPreset = await createResolvedRenderInput(updatedPreset);
+      const renderModel = presetToRenderModel(resolvedPreset);
+      setResolvedRenderModel(renderModel);
       sessionBus.publishActivePreset(renderModel);
     },
     [preset]
   );
 
-  const handleBackgroundMediaOverlayRemove = useCallback(() => {
+  const handleBackgroundMediaOverlayRemove = useCallback(async () => {
     if (!preset || !preset.background.mediaOverlay) {
       return;
+    }
+
+    // Revoke objectURL if it was a local media
+    if (preset.background.mediaOverlay.source === 'local') {
+      const mediaId = preset.background.mediaOverlay.media.mediaId;
+      if (mediaId) {
+        localMediaResolver.revokeMediaId(mediaId);
+      }
     }
 
     const updatedPreset: Preset = {
@@ -104,6 +195,7 @@ export function ConfigApp(): JSX.Element {
     savePreset(updatedPreset);
 
     const renderModel = presetToRenderModel(updatedPreset);
+    setResolvedRenderModel(renderModel);
     sessionBus.publishActivePreset(renderModel);
   }, [preset]);
 
@@ -163,8 +255,6 @@ export function ConfigApp(): JSX.Element {
     );
   }
 
-  const renderModel = presetToRenderModel(preset);
-
   return (
     <div className="config-root">
       <ConfigHeader
@@ -174,7 +264,7 @@ export function ConfigApp(): JSX.Element {
       <div className="config-content">
         <div className="config-sidebar">
           <div className="config-preview">
-            <BackgroundPreview model={renderModel} />
+            <BackgroundPreview model={resolvedRenderModel} />
           </div>
         </div>
         <div className="background-panel">

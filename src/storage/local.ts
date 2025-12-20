@@ -5,6 +5,7 @@ import type { Preset, ActivePresetState } from '../core/preset/preset.types';
 import { createDefaultPreset } from '../core/preset/preset.defaults';
 import { normalizeMediaOverlayTransform } from '../core/background/media-overlay/media-overlay.defaults';
 import { isValidBackgroundMediaOverlayShape } from '../core/background/media-overlay/media-overlay.validate';
+import { putLocalMedia, getLocalMedia, deleteLocalMedia } from './indexeddb';
 
 /**
  * Loads the active preset state from localStorage.
@@ -273,4 +274,63 @@ function normalizeState(state: ActivePresetState): ActivePresetState {
     presets,
     order,
   };
+}
+
+/**
+ * Generates a stable UUID for local media.
+ * Uses crypto.randomUUID if available, otherwise falls back to a simple UUID v4 implementation.
+ */
+function generateMediaId(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+
+  // Fallback UUID v4 implementation
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+/**
+ * Saves a local media file to IndexedDB and returns stable mediaId + metadata.
+ */
+export async function saveLocalMedia(
+  file: File
+): Promise<{ mediaId: string; fileName: string; fileType: string; fileSize: number }> {
+  const mediaId = generateMediaId();
+  const createdAt = Date.now();
+
+  await putLocalMedia({
+    mediaId,
+    blob: file,
+    fileName: file.name,
+    fileType: file.type || 'application/octet-stream',
+    fileSize: file.size,
+    createdAt,
+  });
+
+  return {
+    mediaId,
+    fileName: file.name,
+    fileType: file.type || 'application/octet-stream',
+    fileSize: file.size,
+  };
+}
+
+/**
+ * Loads a local media blob from IndexedDB by mediaId.
+ * Returns null if not found.
+ */
+export async function loadLocalMediaBlob(mediaId: string): Promise<Blob | null> {
+  const record = await getLocalMedia(mediaId);
+  return record?.blob || null;
+}
+
+/**
+ * Deletes a local media record from IndexedDB by mediaId.
+ */
+export async function deleteLocalMediaById(mediaId: string): Promise<void> {
+  await deleteLocalMedia(mediaId);
 }
