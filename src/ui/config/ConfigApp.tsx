@@ -15,6 +15,7 @@ import { ConfigHeader } from './layout/ConfigHeader';
 import { localMediaResolver } from '../../storage/localMediaResolver';
 import { createDefaultPreset } from '../../core/preset/preset.defaults';
 import { getViewportDimensions } from '../../render/viewport';
+import { normalizeMediaOverlayTransform } from '../../core/background/media-overlay/media-overlay.defaults';
 import '../../render/styles/background.css';
 import '../../render/styles/overlay.css';
 import '../../styles/config.css';
@@ -73,6 +74,15 @@ export function ConfigApp(): JSX.Element {
   const { openModal } = useModal();
   const autoscaleComputedRef = useRef<Set<string>>(new Set());
   const [showOverlayGuides, setShowOverlayGuides] = useState(false);
+  
+  // Throttled publish mechanism
+  const throttleTimerRef = useRef<number | null>(null);
+  const pendingPublishRef = useRef<boolean>(false);
+  const lastPresetRef = useRef<Preset | null>(null);
+  
+  // Persist debounce timers
+  const persistDebounceTimerRef = useRef<number | null>(null);
+  const isInteractionActiveRef = useRef<boolean>(false);
 
   useEffect(() => {
     const initialize = async () => {
@@ -111,6 +121,56 @@ export function ConfigApp(): JSX.Element {
 
     updateRenderModel();
   }, [preset]);
+
+  // Throttled publish function (~100ms)
+  const throttledPublish = useCallback(async (presetToPublish: Preset) => {
+    lastPresetRef.current = presetToPublish;
+    
+    if (throttleTimerRef.current === null) {
+      throttleTimerRef.current = window.setTimeout(async () => {
+        throttleTimerRef.current = null;
+        
+        if (pendingPublishRef.current && lastPresetRef.current) {
+          pendingPublishRef.current = false;
+          const resolvedPreset = await createResolvedRenderInput(lastPresetRef.current);
+          const renderModel = presetToRenderModel(resolvedPreset);
+          sessionBus.publishActivePreset(renderModel);
+        } else if (lastPresetRef.current) {
+          // Publish even if no pending flag (first call)
+          const resolvedPreset = await createResolvedRenderInput(lastPresetRef.current);
+          const renderModel = presetToRenderModel(resolvedPreset);
+          sessionBus.publishActivePreset(renderModel);
+        }
+      }, 100);
+    } else {
+      pendingPublishRef.current = true;
+    }
+  }, []);
+
+  // Cleanup throttle on unmount and preset change
+  useEffect(() => {
+    return () => {
+      if (throttleTimerRef.current !== null) {
+        clearTimeout(throttleTimerRef.current);
+        throttleTimerRef.current = null;
+      }
+      if (persistDebounceTimerRef.current !== null) {
+        clearTimeout(persistDebounceTimerRef.current);
+        persistDebounceTimerRef.current = null;
+      }
+      pendingPublishRef.current = false;
+      isInteractionActiveRef.current = false;
+    };
+  }, [preset?.id]);
+
+  // Cancel interaction on preset change
+  useEffect(() => {
+    if (persistDebounceTimerRef.current !== null) {
+      clearTimeout(persistDebounceTimerRef.current);
+      persistDebounceTimerRef.current = null;
+    }
+    isInteractionActiveRef.current = false;
+  }, [preset?.id]);
 
   const handleColorChange = useCallback(async (color: string) => {
     if (!preset) return;
@@ -151,6 +211,40 @@ export function ConfigApp(): JSX.Element {
     async (overlay: BackgroundMediaOverlayConfig) => {
       if (!preset) {
         return;
+      }
+
+      // For YouTube, ensure default intrinsic is set and compute autoscale if needed
+      if (overlay.source === 'youtube' && overlay.media.intrinsic) {
+        const mediaKey = `youtube:${overlay.media.videoId}`;
+        const isNewYouTube = !autoscaleComputedRef.current.has(mediaKey);
+        const isDefaultTransform =
+          overlay.transform.scale === 1 &&
+          overlay.transform.autoScale === 1 &&
+          overlay.transform.offsetX === 0 &&
+          overlay.transform.offsetY === 0 &&
+          overlay.transform.rotateDeg === 0;
+
+        if (isNewYouTube && isDefaultTransform) {
+          // Compute autoscale for YouTube using default intrinsic
+          const viewport = getViewportDimensions();
+          const viewportShortEdge = Math.min(viewport.width, viewport.height);
+          const mediaShortEdge = Math.min(
+            overlay.media.intrinsic.width,
+            overlay.media.intrinsic.height
+          );
+          const autoScaleShortEdge = viewportShortEdge / mediaShortEdge;
+
+          overlay = {
+            ...overlay,
+            transform: {
+              ...overlay.transform,
+              autoScale: autoScaleShortEdge,
+              scale: 1,
+            },
+          };
+
+          autoscaleComputedRef.current.add(mediaKey);
+        }
       }
 
       const updatedPreset: Preset = {
@@ -250,7 +344,7 @@ export function ConfigApp(): JSX.Element {
     });
   }, [openModal, preset, handleBackgroundMediaOverlayRemove]);
 
-  // Handle transform change
+  // Handle transform change (from input fields - immediate persist)
   const handleTransformChange = useCallback(
     async (transform: BackgroundMediaOverlayConfig['transform']) => {
       if (!preset || !preset.background.mediaOverlay) {
@@ -280,6 +374,132 @@ export function ConfigApp(): JSX.Element {
     [preset]
   );
 
+  // Apply transform delta (for interactive manipulation)
+  const applyTransformDelta = useCallback(
+    (deltaX: number, deltaY: number, deltaScale?: number) => {
+      if (!preset || !preset.background.mediaOverlay) {
+        return;
+      }
+
+      const viewport = getViewportDimensions();
+      const currentTransform = preset.background.mediaOverlay.transform;
+      
+      // Convert pixel deltas to normalized offset deltas
+      // offsetX/Y are in [-2, 2] range, representing viewport-relative offsets
+      const offsetDeltaX = deltaX / (viewport.width / 2);
+      const offsetDeltaY = deltaY / (viewport.height / 2);
+      
+      let newTransform = { ...currentTransform };
+      
+      if (deltaScale !== undefined) {
+        // Scale delta: multiply current scale
+        newTransform.scale = Math.max(0.01, currentTransform.scale * (1 + deltaScale));
+      } else {
+        // Offset delta: add to current offsets
+        newTransform.offsetX = currentTransform.offsetX + offsetDeltaX;
+        newTransform.offsetY = currentTransform.offsetY + offsetDeltaY;
+      }
+      
+      // Normalize transform
+      newTransform = normalizeMediaOverlayTransform(newTransform);
+      
+      const updatedPreset: Preset = {
+        ...preset,
+        background: {
+          ...preset.background,
+          mediaOverlay: {
+            ...preset.background.mediaOverlay,
+            transform: newTransform,
+          },
+        },
+      };
+
+      // Update in-memory preset immediately
+      setPreset(updatedPreset);
+      
+      // Update preview render model immediately (async resolution for local media)
+      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
+        const renderModel = presetToRenderModel(resolvedPreset);
+        setResolvedRenderModel(renderModel);
+      });
+      
+      // Throttled publish to Kraken
+      throttledPublish(updatedPreset);
+    },
+    [preset, throttledPublish]
+  );
+
+  // Persist with debounce (for wheel/keyboard)
+  const schedulePersist = useCallback(() => {
+    if (persistDebounceTimerRef.current !== null) {
+      clearTimeout(persistDebounceTimerRef.current);
+    }
+    
+    persistDebounceTimerRef.current = window.setTimeout(() => {
+      if (preset) {
+        savePreset(preset);
+        persistDebounceTimerRef.current = null;
+        isInteractionActiveRef.current = false;
+      }
+    }, 400);
+    
+    isInteractionActiveRef.current = true;
+  }, [preset]);
+
+  // Immediate persist (for drag end)
+  const persistImmediate = useCallback(() => {
+    if (persistDebounceTimerRef.current !== null) {
+      clearTimeout(persistDebounceTimerRef.current);
+      persistDebounceTimerRef.current = null;
+    }
+    
+    if (preset) {
+      savePreset(preset);
+      isInteractionActiveRef.current = false;
+    }
+  }, [preset]);
+
+  // Preview interaction handlers
+  const handleTransformDelta = useCallback(
+    (deltaX: number, deltaY: number) => {
+      applyTransformDelta(deltaX, deltaY);
+    },
+    [applyTransformDelta]
+  );
+
+  const handleScaleDelta = useCallback(
+    (delta: number) => {
+      applyTransformDelta(0, 0, delta);
+      schedulePersist();
+    },
+    [applyTransformDelta, schedulePersist]
+  );
+
+  const handleKeyArrow = useCallback(
+    (direction: 'up' | 'down' | 'left' | 'right', shift: boolean) => {
+      if (!preset || !preset.background.mediaOverlay) return;
+      
+      const viewport = getViewportDimensions();
+      const step = shift ? 0.1 : 0.05; // Larger step with Shift
+      
+      let deltaX = 0;
+      let deltaY = 0;
+      
+      if (direction === 'left') deltaX = -step * (viewport.width / 2);
+      else if (direction === 'right') deltaX = step * (viewport.width / 2);
+      else if (direction === 'up') deltaY = -step * (viewport.height / 2);
+      else if (direction === 'down') deltaY = step * (viewport.height / 2);
+      
+      applyTransformDelta(deltaX, deltaY);
+      schedulePersist();
+    },
+    [preset, applyTransformDelta, schedulePersist]
+  );
+
+  const handleDragEnd = useCallback(() => {
+    persistImmediate();
+  }, [persistImmediate]);
+
   // Handle intrinsic size available (autoscale computation + intrinsic persistence)
   const handleIntrinsicSizeAvailable = useCallback(
     async (width: number, height: number) => {
@@ -292,7 +512,11 @@ export function ConfigApp(): JSX.Element {
 
       // Get media source identifier for tracking
       const mediaId =
-        overlay.source === 'local' ? overlay.media.mediaId : overlay.media.url;
+        overlay.source === 'local'
+          ? overlay.media.mediaId
+          : overlay.source === 'youtube'
+            ? overlay.media.videoId
+            : overlay.media.url;
       const mediaKey = `${overlay.source}:${mediaId}`;
 
       // Check if autoscale already computed for this media
@@ -389,7 +613,11 @@ export function ConfigApp(): JSX.Element {
 
     const overlay = preset.background.mediaOverlay;
     const mediaId =
-      overlay.source === 'local' ? overlay.media.mediaId : overlay.media.url;
+      overlay.source === 'local'
+        ? overlay.media.mediaId
+        : overlay.source === 'youtube'
+          ? overlay.media.videoId
+          : overlay.media.url;
     const mediaKey = `${overlay.source}:${mediaId}`;
 
     // If media changed, clear tracking for old media
@@ -422,6 +650,10 @@ export function ConfigApp(): JSX.Element {
               model={resolvedRenderModel}
               onIntrinsicSizeAvailable={handleIntrinsicSizeAvailable}
               showOverlayGuides={showOverlayGuides}
+              onTransformDelta={handleTransformDelta}
+              onScaleDelta={handleScaleDelta}
+              onKeyArrow={handleKeyArrow}
+              onDragEnd={handleDragEnd}
             />
           </div>
         </div>
@@ -436,6 +668,7 @@ export function ConfigApp(): JSX.Element {
             onTransformChange={handleTransformChange}
             showOverlayGuides={showOverlayGuides}
             onOverlayGuidesChange={setShowOverlayGuides}
+            mediaOverlaySource={preset.background.mediaOverlay?.source}
           />
         </div>
       </div>

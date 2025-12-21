@@ -17,6 +17,7 @@ interface BackgroundSettingsPanelProps {
   onTransformChange?: (transform: MediaOverlayTransform) => void;
   showOverlayGuides?: boolean;
   onOverlayGuidesChange?: (show: boolean) => void;
+  mediaOverlaySource?: 'local' | 'url' | 'youtube';
 }
 
 export function BackgroundSettingsPanel({
@@ -29,6 +30,7 @@ export function BackgroundSettingsPanel({
   onTransformChange,
   showOverlayGuides = false,
   onOverlayGuidesChange,
+  mediaOverlaySource,
 }: BackgroundSettingsPanelProps): JSX.Element {
   const { t } = useTranslation();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -44,6 +46,7 @@ export function BackgroundSettingsPanel({
       max,
       step = 0.01,
       decimals = 2,
+      disabled = false,
     }: {
       label: string;
       value: number;
@@ -53,6 +56,7 @@ export function BackgroundSettingsPanel({
       max?: number;
       step?: number;
       decimals?: number;
+      disabled?: boolean;
     }) => {
       const inputRef = useRef<HTMLInputElement>(null);
 
@@ -126,14 +130,17 @@ export function BackgroundSettingsPanel({
               min={min}
               max={max}
               step={step}
+              disabled={disabled}
               style={{
                 width: '80px',
                 padding: '4px 8px',
-                backgroundColor: '#1a1a1f',
+                backgroundColor: disabled ? '#0f0f0f' : '#1a1a1f',
                 border: '1px solid #2a2a2f',
                 borderRadius: '4px',
-                color: '#fff',
+                color: disabled ? '#666' : '#fff',
                 fontSize: '14px',
+                cursor: disabled ? 'not-allowed' : 'text',
+                opacity: disabled ? 0.5 : 1,
               }}
             />
             {onReset && (
@@ -238,20 +245,35 @@ export function BackgroundSettingsPanel({
                 step={0.01}
                 decimals={2}
               />
-              <NumericInput
-                label={t('backgroundMediaTransformRotate')}
-                value={transform.rotateDeg}
-                onChange={(value) =>
-                  onTransformChange({ ...transform, rotateDeg: value })
-                }
-                onReset={() =>
-                  onTransformChange({ ...transform, rotateDeg: 0 })
-                }
-                min={-180}
-                max={180}
-                step={1}
-                decimals={0}
-              />
+              <div>
+                <NumericInput
+                  label={t('backgroundMediaTransformRotate')}
+                  value={transform.rotateDeg}
+                  onChange={(value) =>
+                    onTransformChange({ ...transform, rotateDeg: value })
+                  }
+                  onReset={() =>
+                    onTransformChange({ ...transform, rotateDeg: 0 })
+                  }
+                  min={-180}
+                  max={180}
+                  step={1}
+                  decimals={0}
+                  disabled={mediaOverlaySource === 'youtube'}
+                />
+                {mediaOverlaySource === 'youtube' && (
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      color: '#a0a0a0',
+                      marginTop: '4px',
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    {t('backgroundMediaTransformRotateYoutubeDisabled') || 'Rotation is not supported for YouTube videos'}
+                  </div>
+                )}
+              </div>
               <NumericInput
                 label={t('backgroundMediaTransformOffsetX')}
                 value={transform.offsetX}

@@ -5,8 +5,10 @@ import type {
   MediaOverlayRenderModel,
   LocalBackgroundMediaOverlayConfig,
   UrlBackgroundMediaOverlayConfig,
+  YoutubeBackgroundMediaOverlayConfig,
   LocalMediaConfig,
   UrlMediaConfig,
+  YoutubeMediaConfig,
 } from './media-overlay.types';
 import { withDefaultTransform } from './media-overlay.defaults';
 import { isValidBackgroundMediaOverlayShape } from './media-overlay.validate';
@@ -38,10 +40,9 @@ export interface MediaOverlayContract {
  * Determines primitive type (image/video) for a given media description.
  * Returns null if the type cannot be determined.
  */
-function resolvePrimitive(media: LocalMediaConfig | UrlMediaConfig):
-  | 'image'
-  | 'video'
-  | null {
+function resolvePrimitive(
+  media: LocalMediaConfig | UrlMediaConfig | YoutubeMediaConfig
+): 'image' | 'video' | null {
   if (media.type === 'local') {
     const mime = media.fileType.toLowerCase();
     if (mime.startsWith('image/')) {
@@ -74,6 +75,11 @@ function resolvePrimitive(media: LocalMediaConfig | UrlMediaConfig):
     return null;
   }
 
+  if (media.type === 'youtube') {
+    // YouTube videos are always video primitives
+    return 'video';
+  }
+
   return null;
 }
 
@@ -87,6 +93,19 @@ export const mediaOverlayContract: MediaOverlayContract = {
     }
 
     const overlay = config as BackgroundMediaOverlayConfig;
+    
+    // Validate YouTube-specific requirements
+    if (overlay.source === 'youtube') {
+      const youtubeMedia = overlay.media as YoutubeMediaConfig;
+      if (youtubeMedia.type !== 'youtube' || !youtubeMedia.videoId) {
+        return false;
+      }
+      // Validate video ID format (11 chars: [A-Za-z0-9_-])
+      if (!/^[A-Za-z0-9_-]{11}$/.test(youtubeMedia.videoId)) {
+        return false;
+      }
+    }
+    
     const primitive = resolvePrimitive(overlay.media);
     if (primitive === null) {
       return false;
@@ -198,6 +217,47 @@ export const mediaOverlayContract: MediaOverlayContract = {
       return withDefaultTransform(overlay);
     }
 
+    if (c.source === 'youtube') {
+      const media = c.media as YoutubeMediaConfig | undefined;
+      if (!media) {
+        throw new Error('Invalid media overlay config: missing YouTube media');
+      }
+
+      // Normalize intrinsic if present
+      let intrinsic: { width: number; height: number } | undefined;
+      if (media.intrinsic) {
+        const i = media.intrinsic;
+        if (
+          typeof i.width === 'number' &&
+          Number.isFinite(i.width) &&
+          i.width > 0 &&
+          typeof i.height === 'number' &&
+          Number.isFinite(i.height) &&
+          i.height > 0
+        ) {
+          intrinsic = { width: i.width, height: i.height };
+        }
+      }
+
+      // Default intrinsic for YouTube (16:9 aspect ratio)
+      if (!intrinsic) {
+        intrinsic = { width: 1920, height: 1080 };
+      }
+
+      const overlay: YoutubeBackgroundMediaOverlayConfig = {
+        kind,
+        source: 'youtube',
+        media: {
+          type: 'youtube',
+          videoId: media.videoId,
+          intrinsic,
+        },
+        transform: (c as any).transform,
+      };
+
+      return withDefaultTransform(overlay);
+    }
+
     throw new Error('Invalid media overlay config: unsupported source');
   },
 
@@ -211,6 +271,11 @@ export const mediaOverlayContract: MediaOverlayContract = {
 
     if (config.source === 'local') {
       src = config.media.mediaId;
+    } else if (config.source === 'youtube') {
+      const youtubeMedia = config.media as YoutubeMediaConfig;
+      // Generate embed URL with autoplay, mute, and loop parameters
+      // Loop requires playlist parameter with same video ID
+      src = `https://www.youtube.com/embed/${youtubeMedia.videoId}?autoplay=1&mute=1&loop=1&playlist=${youtubeMedia.videoId}`;
     } else {
       src = config.media.url;
     }

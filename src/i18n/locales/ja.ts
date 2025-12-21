@@ -113,4 +113,6 @@ export const ja = {
   backgroundMediaTransformOffsetY: 'Yオフセット',
   backgroundMediaTransformReset: 'リセット',
   backgroundMediaOverlayGuides: 'オーバーレイガイド',
+  backgroundMediaYoutubeProxyTitle: 'YouTube動画はここでは再生できません',
+  backgroundMediaYoutubeProxyDescription: 'この領域を使用して動画を配置してください。',
 } as const;

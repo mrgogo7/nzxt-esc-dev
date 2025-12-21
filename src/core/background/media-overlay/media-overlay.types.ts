@@ -78,6 +78,23 @@ export interface UrlMediaConfig {
   intrinsic?: MediaIntrinsic;
 }
 
+/**
+ * YouTube media configuration for background overlays.
+ */
+export interface YoutubeMediaConfig {
+  type: 'youtube';
+  /**
+   * YouTube video ID (11 characters: [A-Za-z0-9_-]).
+   */
+  videoId: string;
+  /**
+   * Intrinsic dimensions of the media (optional).
+   * Defaults to 16:9 (1920x1080) if not provided.
+   * If present, used to preserve aspect ratio in render.
+   */
+  intrinsic?: MediaIntrinsic;
+}
+
 interface BaseBackgroundMediaOverlayConfig {
   kind: 'media-overlay';
   transform: MediaOverlayTransform;
@@ -95,12 +112,19 @@ export interface UrlBackgroundMediaOverlayConfig
   media: UrlMediaConfig;
 }
 
+export interface YoutubeBackgroundMediaOverlayConfig
+  extends BaseBackgroundMediaOverlayConfig {
+  source: 'youtube';
+  media: YoutubeMediaConfig;
+}
+
 /**
  * Unified background media overlay configuration.
  */
 export type BackgroundMediaOverlayConfig =
   | LocalBackgroundMediaOverlayConfig
-  | UrlBackgroundMediaOverlayConfig;
+  | UrlBackgroundMediaOverlayConfig
+  | YoutubeBackgroundMediaOverlayConfig;
 
 /**
  * Render-ready media overlay model consumed by the render layer.
@@ -116,9 +140,9 @@ export interface MediaOverlayRenderModel {
   /**
    * Original source category.
    */
-  source: 'local' | 'url';
+  source: 'local' | 'url' | 'youtube';
   /**
-   * Resolved source string (URL, blob URL, etc.).
+   * Resolved source string (URL, blob URL, embed URL, etc.).
    */
   src: string;
   /**

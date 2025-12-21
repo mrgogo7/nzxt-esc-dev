@@ -5,7 +5,11 @@
 // overlays. UI components (including modals) may call this helper
 // but must not inspect URL structure or media types directly.
 
-import type { BackgroundMediaOverlayConfig, UrlMediaConfig } from './media-overlay.types';
+import type {
+  BackgroundMediaOverlayConfig,
+  UrlMediaConfig,
+  YoutubeMediaConfig,
+} from './media-overlay.types';
 import { mediaOverlayContract } from './media-overlay.contract';
 
 export type BackgroundMediaUrlKind = 'direct' | 'youtube' | 'pinterest' | 'unknown';
@@ -1005,6 +1009,90 @@ async function collectPinterestMediaFromApi(
 }
 
 /**
+ * Extracts YouTube video ID from various YouTube URL patterns.
+ * Returns null if no valid video ID is found.
+ *
+ * Supported patterns:
+ * - https://www.youtube.com/watch?v=VIDEO_ID
+ * - https://youtu.be/VIDEO_ID
+ * - https://www.youtube.com/embed/VIDEO_ID
+ * - https://www.youtube.com/shorts/VIDEO_ID
+ * - https://m.youtube.com/watch?v=VIDEO_ID
+ */
+function extractYouTubeVideoId(url: string): string | null {
+  const trimmed = url.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return null;
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  const pathname = parsed.pathname;
+
+  // youtu.be/VIDEO_ID
+  if (host === 'youtu.be') {
+    const segments = pathname.split('/').filter(Boolean);
+    if (segments.length > 0) {
+      const videoId = segments[0].split('?')[0];
+      if (isValidYouTubeVideoId(videoId)) {
+        return videoId;
+      }
+    }
+  }
+
+  // youtube.com patterns
+  if (host.endsWith('youtube.com')) {
+    // /watch?v=VIDEO_ID
+    const vParam = parsed.searchParams.get('v');
+    if (vParam && isValidYouTubeVideoId(vParam)) {
+      return vParam;
+    }
+
+    // /embed/VIDEO_ID
+    if (pathname.startsWith('/embed/')) {
+      const segments = pathname.split('/').filter(Boolean);
+      if (segments.length > 1 && segments[0] === 'embed') {
+        const videoId = segments[1].split('?')[0];
+        if (isValidYouTubeVideoId(videoId)) {
+          return videoId;
+        }
+      }
+    }
+
+    // /shorts/VIDEO_ID
+    if (pathname.startsWith('/shorts/')) {
+      const segments = pathname.split('/').filter(Boolean);
+      if (segments.length > 1 && segments[0] === 'shorts') {
+        const videoId = segments[1].split('?')[0];
+        if (isValidYouTubeVideoId(videoId)) {
+          return videoId;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Validates YouTube video ID format.
+ * YouTube video IDs are 11 characters: [A-Za-z0-9_-]
+ */
+function isValidYouTubeVideoId(videoId: string): boolean {
+  if (typeof videoId !== 'string' || videoId.length !== 11) {
+    return false;
+  }
+  // YouTube video ID pattern: 11 characters, alphanumeric + underscore + hyphen
+  return /^[A-Za-z0-9_-]{11}$/.test(videoId);
+}
+
+/**
  * Resolves a background media overlay from a raw URL string.
  *
  * On success, returns a fully-normalized BackgroundMediaOverlayConfig.
@@ -1049,9 +1137,35 @@ export async function resolveBackgroundMediaFromUrl(
     }
   }
 
-  // YouTube URLs remain unsupported for FAZ-3C.
+  // YouTube URLs: extract videoId and create YouTube media config.
   if (kind === 'youtube') {
-    throw new ResolveError('UNSUPPORTED_URL');
+    const videoId = extractYouTubeVideoId(trimmed);
+    if (!videoId) {
+      throw new ResolveError('UNSUPPORTED_URL');
+    }
+
+    const media: YoutubeMediaConfig = {
+      type: 'youtube',
+      videoId,
+    };
+
+    try {
+      const normalized = mediaOverlayContract.normalize({
+        source: 'youtube',
+        media,
+      } as Partial<BackgroundMediaOverlayConfig>);
+
+      if (!mediaOverlayContract.validate(normalized)) {
+        throw new ResolveError('UNSUPPORTED_URL');
+      }
+
+      return normalized;
+    } catch (error) {
+      if (error instanceof ResolveError) {
+        throw error;
+      }
+      throw new ResolveError('INVALID_URL');
+    }
   }
 
   // Direct media URLs and generic URLs: use base URL as-is.

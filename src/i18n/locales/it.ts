@@ -113,4 +113,6 @@ export const it = {
   backgroundMediaTransformOffsetY: 'Scostamento Y',
   backgroundMediaTransformReset: 'Reimposta',
   backgroundMediaOverlayGuides: 'Guide sovrapposizione',
+  backgroundMediaYoutubeProxyTitle: 'Il Video di YouTube Non Può Essere Riprodotto Qui',
+  backgroundMediaYoutubeProxyDescription: 'Usa quest\'area per posizionare il video.',
 } as const;

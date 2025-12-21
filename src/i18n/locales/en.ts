@@ -128,4 +128,6 @@ export const en = {
   backgroundMediaTransformOffsetY: 'Y Offset',
   backgroundMediaTransformReset: 'Reset',
   backgroundMediaOverlayGuides: 'Overlay Guides',
+  backgroundMediaYoutubeProxyTitle: 'YouTube Video Cannot Be Played Here',
+  backgroundMediaYoutubeProxyDescription: 'Use this area to position the video.',
 } as const;

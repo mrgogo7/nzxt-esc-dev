@@ -162,7 +162,18 @@ export function KrakenApp(): JSX.Element {
                   transform: overlay.worldTransform,
                 }}
               >
-                {overlay.primitive === 'image' ? (
+                {overlay.source === 'youtube' ? (
+                  <iframe
+                    className="render-media-overlay-media"
+                    src={overlay.src}
+                    allow="autoplay; encrypted-media"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      border: 'none',
+                    }}
+                  />
+                ) : overlay.primitive === 'image' ? (
                   <img
                     className="render-media-overlay-media"
                     src={overlay.src}

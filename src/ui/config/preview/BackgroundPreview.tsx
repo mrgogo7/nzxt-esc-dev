@@ -2,14 +2,20 @@
 
 import { useEffect, useRef } from 'react';
 import type { SyntheticEvent } from 'react';
+import { Move } from 'lucide-react';
 import type { RenderModel } from '../../../render/model/render.types';
 import { renderBackground, renderMediaOverlay } from '../../../render/engine';
 import { getViewportDimensions } from '../../../render/viewport';
+import { useTranslation } from '../../../i18n';
 
 interface BackgroundPreviewProps {
   model: RenderModel;
   onIntrinsicSizeAvailable?: (width: number, height: number) => void;
   showOverlayGuides?: boolean;
+  onTransformDelta?: (deltaX: number, deltaY: number) => void;
+  onScaleDelta?: (delta: number) => void;
+  onKeyArrow?: (direction: 'up' | 'down' | 'left' | 'right', shift: boolean) => void;
+  onDragEnd?: () => void;
 }
 
 /**
@@ -27,7 +33,13 @@ export function BackgroundPreview({
   model,
   onIntrinsicSizeAvailable,
   showOverlayGuides = false,
+  onTransformDelta,
+  onScaleDelta,
+  onKeyArrow,
+  onDragEnd,
 }: BackgroundPreviewProps): JSX.Element {
+  const { t } = useTranslation();
+  
   // All transform math is done in LCD viewport space (e.g. 640x640).
   // Preview is a visual camera scaled via CSS.
   // Preview size must NEVER affect transform calculations.
@@ -36,6 +48,10 @@ export function BackgroundPreview({
   const previewScale = previewSize / lcdViewport.width;
 
   const lastMediaSrcRef = useRef<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef(false);
+  const lastPointerPosRef = useRef<{ x: number; y: number } | null>(null);
+  const persistDebounceTimerRef = useRef<number | null>(null);
 
   // Render at LCD viewport size (transform math uses LCD viewport)
   const backgroundStyle = renderBackground(model, lcdViewport);
@@ -75,6 +91,98 @@ export function BackgroundPreview({
     }
   };
 
+  // Interaction handlers - only active when mediaOverlay exists
+  const hasMediaOverlay = Boolean(model.mediaOverlay);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (!hasMediaOverlay || !onTransformDelta || !containerRef.current) return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    isDraggingRef.current = true;
+    const rect = containerRef.current.getBoundingClientRect();
+    lastPointerPosRef.current = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    };
+    containerRef.current.setPointerCapture(e.pointerId);
+    
+    // Force cursor update
+    if (containerRef.current) {
+      containerRef.current.style.cursor = 'grabbing';
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!hasMediaOverlay || !onTransformDelta || !isDraggingRef.current || !lastPointerPosRef.current || !containerRef.current) return;
+    
+    e.preventDefault();
+    const rect = containerRef.current.getBoundingClientRect();
+    const currentX = e.clientX - rect.left;
+    const currentY = e.clientY - rect.top;
+    
+    const deltaX = (currentX - lastPointerPosRef.current.x) / previewScale;
+    const deltaY = (currentY - lastPointerPosRef.current.y) / previewScale;
+    
+    onTransformDelta(deltaX, deltaY);
+    
+    lastPointerPosRef.current = { x: currentX, y: currentY };
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!hasMediaOverlay || !isDraggingRef.current) return;
+    
+    isDraggingRef.current = false;
+    lastPointerPosRef.current = null;
+    if (containerRef.current) {
+      containerRef.current.releasePointerCapture(e.pointerId);
+      containerRef.current.style.cursor = hasMediaOverlay ? 'grab' : 'default';
+    }
+    
+    if (onDragEnd) {
+      onDragEnd();
+    }
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (!hasMediaOverlay || !onScaleDelta) return;
+    
+    e.preventDefault();
+    const delta = -e.deltaY * 0.001; // Scale sensitivity
+    onScaleDelta(delta);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!hasMediaOverlay || !onKeyArrow) return;
+    
+    const shift = e.shiftKey;
+    let direction: 'up' | 'down' | 'left' | 'right' | null = null;
+    
+    if (e.key === 'ArrowUp') {
+      direction = 'up';
+    } else if (e.key === 'ArrowDown') {
+      direction = 'down';
+    } else if (e.key === 'ArrowLeft') {
+      direction = 'left';
+    } else if (e.key === 'ArrowRight') {
+      direction = 'right';
+    }
+    
+    if (direction) {
+      e.preventDefault();
+      onKeyArrow(direction, shift);
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (persistDebounceTimerRef.current !== null) {
+        clearTimeout(persistDebounceTimerRef.current);
+      }
+    };
+  }, []);
+
   return (
     <div style={{
       display: 'flex',
@@ -84,6 +192,8 @@ export function BackgroundPreview({
     }}>
       {/* Preview wrapper: visual scaling only, no transform math */}
       <div
+        ref={containerRef}
+        tabIndex={hasMediaOverlay ? 0 : undefined}
         style={{
           width: `${previewSize}px`,
           height: `${previewSize}px`,
@@ -91,7 +201,14 @@ export function BackgroundPreview({
           alignItems: 'center',
           justifyContent: 'center',
           overflow: 'hidden',
+          cursor: hasMediaOverlay ? 'grab' : 'default',
+          outline: 'none',
         }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onWheel={handleWheel}
+        onKeyDown={handleKeyDown}
       >
         {/* Inner container: rendered at LCD viewport size, scaled down visually via CSS */}
         {/* This is the camera model - CSS transform does NOT affect render math */}
@@ -126,7 +243,50 @@ export function BackgroundPreview({
                     transform: overlay.worldTransform,
                   }}
                 >
-                  {overlay.primitive === 'image' ? (
+                  {overlay.source === 'youtube' ? (
+                    // YouTube proxy: red rectangle representing video footprint
+                    <div
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        backgroundColor: '#ff0000',
+                        border: '2px solid #cc0000',
+                        boxSizing: 'border-box',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '12px',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: '22px',
+                          color: '#ffffff',
+                          textAlign: 'center',
+                          fontWeight: 500,
+                        }}
+                      >
+                        {t('backgroundMediaYoutubeProxyTitle')}
+                      </div>
+                      <Move
+                        size={64}
+                        color="#ffffff"
+                        strokeWidth={2}
+                      />
+                      <div
+                        style={{
+                          fontSize: '22px',
+                          color: '#ffffff',
+                          textAlign: 'center',
+                          fontWeight: 500,
+                        }}
+                      >
+                        {t('backgroundMediaYoutubeProxyDescription')}
+                      </div>
+                    </div>
+                  ) : overlay.primitive === 'image' ? (
                     <img
                       className="render-media-overlay-media"
                       src={overlay.src}

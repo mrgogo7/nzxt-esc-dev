@@ -144,6 +144,7 @@ export function renderMediaOverlay(
   viewport: ViewportDimensions
 ): {
   primitive: 'image' | 'video';
+  source: 'local' | 'url' | 'youtube';
   src: string;
   worldWidth: number;
   worldHeight: number;
@@ -203,6 +204,7 @@ export function renderMediaOverlay(
 
   return {
     primitive: overlay.primitive,
+    source: overlay.source,
     src: overlay.src,
     worldWidth,
     worldHeight,

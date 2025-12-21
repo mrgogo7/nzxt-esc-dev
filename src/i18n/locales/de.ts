@@ -113,4 +113,6 @@ export const de = {
   backgroundMediaTransformOffsetY: 'Y-Offset',
   backgroundMediaTransformReset: 'Zurücksetzen',
   backgroundMediaOverlayGuides: 'Überlagerungsführungen',
+  backgroundMediaYoutubeProxyTitle: 'YouTube-Video Kann Hier Nicht Abgespielt Werden',
+  backgroundMediaYoutubeProxyDescription: 'Verwenden Sie diesen Bereich, um das Video zu positionieren.',
 } as const;

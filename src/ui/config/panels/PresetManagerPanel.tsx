@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from '../../../i18n';
-import { loadActivePresetState, saveActivePresetState } from '../../../storage/local';
+import { loadActivePresetState, saveActivePresetState, savePreset } from '../../../storage/local';
 import type { Preset, ActivePresetState } from '../../../core/preset/preset.types';
 import { useModal } from '../../shared/modal/modal.context';
 import { exportPresetV2 } from '../../../storage/preset/exportPresetV2';
@@ -152,6 +152,13 @@ export function PresetManagerPanel({
         defaultName: activePreset.name,
         onConfirm: async (exportName: string) => {
           try {
+            // Flush any unpersisted transform changes before export
+            const currentState = loadActivePresetState();
+            const currentPreset = currentState.presets[activePreset.id];
+            if (currentPreset) {
+              savePreset(currentPreset);
+            }
+            
             const exportData = await exportPresetV2(activePreset.id);
             const baseName = exportName.trim() || activePreset.name;
             const safeName =

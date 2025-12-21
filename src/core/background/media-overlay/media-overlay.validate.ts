@@ -4,8 +4,10 @@ import type {
   BackgroundMediaOverlayConfig,
   LocalBackgroundMediaOverlayConfig,
   UrlBackgroundMediaOverlayConfig,
+  YoutubeBackgroundMediaOverlayConfig,
   LocalMediaConfig,
   UrlMediaConfig,
+  YoutubeMediaConfig,
   MediaOverlayTransform,
 } from './media-overlay.types';
 
@@ -153,6 +155,34 @@ function isValidLocalOverlayShape(
   return true;
 }
 
+function isValidYoutubeMediaConfigShape(media: unknown): media is YoutubeMediaConfig {
+  if (!media || typeof media !== 'object') {
+    return false;
+  }
+
+  const m = media as Partial<YoutubeMediaConfig>;
+
+  if (m.type !== 'youtube') {
+    return false;
+  }
+
+  if (typeof m.videoId !== 'string' || m.videoId.length === 0) {
+    return false;
+  }
+
+  // Validate video ID format (11 chars: [A-Za-z0-9_-])
+  if (!/^[A-Za-z0-9_-]{11}$/.test(m.videoId)) {
+    return false;
+  }
+
+  // Validate intrinsic if present
+  if (m.intrinsic !== undefined && !isValidMediaIntrinsicShape(m.intrinsic)) {
+    return false;
+  }
+
+  return true;
+}
+
 function isValidUrlOverlayShape(config: unknown): config is UrlBackgroundMediaOverlayConfig {
   if (!config || typeof config !== 'object') {
     return false;
@@ -179,6 +209,34 @@ function isValidUrlOverlayShape(config: unknown): config is UrlBackgroundMediaOv
   return true;
 }
 
+function isValidYoutubeOverlayShape(
+  config: unknown
+): config is YoutubeBackgroundMediaOverlayConfig {
+  if (!config || typeof config !== 'object') {
+    return false;
+  }
+
+  const c = config as Partial<YoutubeBackgroundMediaOverlayConfig>;
+
+  if (c.kind !== 'media-overlay') {
+    return false;
+  }
+
+  if (c.source !== 'youtube') {
+    return false;
+  }
+
+  if (!isValidYoutubeMediaConfigShape((c as any).media)) {
+    return false;
+  }
+
+  if (c.transform !== undefined && !isValidMediaOverlayTransformShape(c.transform)) {
+    return false;
+  }
+
+  return true;
+}
+
 /**
  * Validates background media overlay SHAPE.
  *
@@ -188,5 +246,9 @@ function isValidUrlOverlayShape(config: unknown): config is UrlBackgroundMediaOv
 export function isValidBackgroundMediaOverlayShape(
   config: unknown
 ): config is BackgroundMediaOverlayConfig {
-  return isValidLocalOverlayShape(config) || isValidUrlOverlayShape(config);
+  return (
+    isValidLocalOverlayShape(config) ||
+    isValidUrlOverlayShape(config) ||
+    isValidYoutubeOverlayShape(config)
+  );
 }

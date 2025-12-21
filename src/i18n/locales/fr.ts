@@ -123,4 +123,6 @@ export const fr = {
   backgroundMediaTransformOffsetY: 'Décalage Y',
   backgroundMediaTransformReset: 'Réinitialiser',
   backgroundMediaOverlayGuides: 'Guides de superposition',
+  backgroundMediaYoutubeProxyTitle: 'La Vidéo YouTube Ne Peut Pas Être Lue Ici',
+  backgroundMediaYoutubeProxyDescription: 'Utilisez cette zone pour positionner la vidéo.',
 } as const;

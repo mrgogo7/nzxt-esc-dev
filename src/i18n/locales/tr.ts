@@ -128,4 +128,6 @@ export const tr = {
   backgroundMediaTransformOffsetY: 'Y Konumu',
   backgroundMediaTransformReset: 'Sıfırla',
   backgroundMediaOverlayGuides: 'Yerleşim Kılavuzları',
+  backgroundMediaYoutubeProxyTitle: 'YouTube Videosu Burada Oynatılamaz',
+  backgroundMediaYoutubeProxyDescription: 'Videoyu konumlandırmak için bu alanı kullanın.',
 } as const;

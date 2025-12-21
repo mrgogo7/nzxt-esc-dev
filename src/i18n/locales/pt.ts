@@ -113,4 +113,6 @@ export const pt = {
   backgroundMediaTransformOffsetY: 'Deslocamento Y',
   backgroundMediaTransformReset: 'Redefinir',
   backgroundMediaOverlayGuides: 'Guias de sobreposição',
+  backgroundMediaYoutubeProxyTitle: 'Vídeo do YouTube Não Pode Ser Reproduzido Aqui',
+  backgroundMediaYoutubeProxyDescription: 'Use esta área para posicionar o vídeo.',
 } as const;
