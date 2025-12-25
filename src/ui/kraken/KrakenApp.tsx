@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { loadActivePresetState } from '../../storage/local';
 import { sessionBus } from '../../sync/sessionBus';
-import { presetToRenderModel, renderBackground, renderMediaOverlay } from '../../render/engine';
+import { presetToRenderModel, renderBackground, renderMediaOverlay, renderOverlay, renderOverlayElement } from '../../render/engine';
+import type { TextElementRenderData } from '../../core/overlay/overlay.types';
 import { getViewportDimensions } from '../../render/viewport';
 import { startNzxtMonitoring } from '../../platform/nzxtApi';
 import { DebugMonitoringOverlay } from './debug/DebugMonitoringOverlay';
@@ -133,12 +134,13 @@ export function KrakenApp(): JSX.Element {
   }
 
   // Render parity with Preview:
-  // - Uses the same render functions (renderBackground, renderMediaOverlay)
-  // - Uses the same CSS classes (render-background, render-media-overlay, render-media-world, render-media-overlay-media)
+  // - Uses the same render functions (renderBackground, renderMediaOverlay, renderOverlay)
+  // - Uses the same CSS classes (render-background, render-media-overlay, render-overlay, etc.)
   // - Uses the same viewport dimensions
   // - Produces pixel-identical output to Preview (Preview is just a CSS-scaled camera view)
   const backgroundStyle = renderBackground(model, viewport);
-  const overlay = renderMediaOverlay(model, viewport);
+  const mediaOverlay = renderMediaOverlay(model, viewport);
+  const overlayElements = renderOverlay(model, viewport);
 
   return (
     <div className="kraken-root">
@@ -150,22 +152,22 @@ export function KrakenApp(): JSX.Element {
             borderRadius: viewport.isCircular ? '50%' : '0',
           }}
         >
-          {overlay && (
+          {mediaOverlay && (
             <div className="render-media-overlay">
               <div
                 className="render-media-world"
                 style={{
-                  width: `${overlay.worldWidth}px`,
-                  height: `${overlay.worldHeight}px`,
-                  marginLeft: `-${overlay.worldWidth / 2}px`,
-                  marginTop: `-${overlay.worldHeight / 2}px`,
-                  transform: overlay.worldTransform,
+                  width: `${mediaOverlay.worldWidth}px`,
+                  height: `${mediaOverlay.worldHeight}px`,
+                  marginLeft: `-${mediaOverlay.worldWidth / 2}px`,
+                  marginTop: `-${mediaOverlay.worldHeight / 2}px`,
+                  transform: mediaOverlay.worldTransform,
                 }}
               >
-                {overlay.source === 'youtube' ? (
+                {mediaOverlay.source === 'youtube' ? (
                   <iframe
                     className="render-media-overlay-media"
-                    src={overlay.src}
+                    src={mediaOverlay.src}
                     allow="autoplay; encrypted-media"
                     style={{
                       width: '100%',
@@ -173,22 +175,51 @@ export function KrakenApp(): JSX.Element {
                       border: 'none',
                     }}
                   />
-                ) : overlay.primitive === 'image' ? (
+                ) : mediaOverlay.primitive === 'image' ? (
                   <img
                     className="render-media-overlay-media"
-                    src={overlay.src}
+                    src={mediaOverlay.src}
                     alt=""
                   />
                 ) : (
                   <video
                     className="render-media-overlay-media"
-                    src={overlay.src}
+                    src={mediaOverlay.src}
                     autoPlay
                     loop
                     muted
                   />
                 )}
               </div>
+            </div>
+          )}
+          {/* FAZ-5.B1: Overlay elements rendering */}
+          {/* Overlay elements are rendered above background and media overlay */}
+          {/* Preview and Kraken use identical render functions (parity guarantee) */}
+          {overlayElements && overlayElements.length > 0 && (
+            <div className="render-overlay">
+              {overlayElements.map((element) => {
+                const elementStyle = renderOverlayElement(element, viewport);
+                if (!elementStyle) {
+                  return null;
+                }
+
+                // TEXT element rendering
+                if (element.elementType === 'text') {
+                  const textData = element.renderData as TextElementRenderData;
+                  return (
+                    <div
+                      key={element.id}
+                      className="render-overlay-element render-overlay-text"
+                      style={elementStyle}
+                    >
+                      {textData.content}
+                    </div>
+                  );
+                }
+
+                return null;
+              })}
             </div>
           )}
         </div>

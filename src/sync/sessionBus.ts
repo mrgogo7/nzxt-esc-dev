@@ -1,14 +1,46 @@
 // Session bus for cross-tab communication
 
+import type { RenderModel } from '../render/model/render.types';
+
 /**
  * Render model snapshot for sync.
- * FAZ-0 minimal structure.
+ *
+ * FAZ-0 minimal structure (background only).
+ * FAZ-5.A3: Extended with optional overlay field (NO-OP, not consumed yet).
+ *
+ * RenderModelSnapshot is compatible with RenderModel structure.
+ * In practice, RenderModel is passed directly to sessionBus.
+ * Overlay field is optional and may be undefined (backward compatible).
+ *
+ * Note: RenderModelSnapshot uses a simplified background structure for backward
+ * compatibility, but in practice the full RenderModel is passed and consumed.
  */
 export interface RenderModelSnapshot {
+  /**
+   * Base background layer (color / gradient).
+   * Simplified structure for backward compatibility with existing consumers.
+   */
   background: {
     kind: 'color';
     color: string;
   };
+
+  /**
+   * Optional media overlay (may be undefined).
+   * Included for type compatibility with RenderModel.
+   */
+  mediaOverlay?: RenderModel['mediaOverlay'];
+
+  /**
+   * Optional overlay configuration (FAZ-5.A3).
+   *
+   * FAZ-5.A3: Overlay field exists but is intentionally unused (NO-OP).
+   * Overlay is included in snapshot if present in RenderModel.
+   * Overlay is not consumed by Kraken or Preview yet.
+   *
+   * Overlay rendering will be implemented in FAZ-5.B.
+   */
+  overlay?: RenderModel['overlay'];
 }
 
 /**

@@ -1,5 +1,11 @@
 /* Config mode layout and styling */
 
+:root {
+  /* FAZ-5.D3: Padding to accommodate decorative preview border overflow */
+  /* Border is 14px thick, scaled to ~5.47px, rounded to 6px for safety margin */
+  --preview-border-padding: 6px;
+}
+
 .config-root {
   max-width: 780px;
   min-width: 780px;
@@ -7,6 +13,8 @@
   margin: 0 auto;
   padding: 10px;
   min-height: 100vh;
+  max-height: 100vh;
+  overflow-y: auto;
   background-color: #171717;
   color: #e5e5ea;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
@@ -25,11 +33,16 @@
   top: 20px;
 }
 
+/* FAZ-5.D3: Preview card container
+ * Adds padding to accommodate decorative border overflow.
+ * Border extends ~5.47px outside 250x250px frame, padding ensures visual containment.
+ */
 .config-preview {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
+  padding: var(--preview-border-padding);
 }
 
 /* Header styles */

@@ -9,13 +9,19 @@ import type { BackgroundMediaOverlayConfig } from '../../core/background/media-o
 import { useTranslation } from '../../i18n';
 import { useModal } from '../shared/modal/modal.context';
 import { BackgroundPreview } from './preview/BackgroundPreview';
+import { OverlayPreview } from './preview/OverlayPreview';
 import { BackgroundSettingsPanel } from './panels/BackgroundSettingsPanel';
+import { OverlaySettingsPanel } from './panels/OverlaySettingsPanel';
 import { PresetManagerPanel } from './panels/PresetManagerPanel';
 import { ConfigHeader } from './layout/ConfigHeader';
 import { localMediaResolver } from '../../storage/localMediaResolver';
 import { createDefaultPreset } from '../../core/preset/preset.defaults';
 import { getViewportDimensions } from '../../render/viewport';
 import { normalizeMediaOverlayTransform } from '../../core/background/media-overlay/media-overlay.defaults';
+import { updateOverlayElementTransform, updateOverlayElementFontSize } from './overlay/overlayUpdates';
+import { toggleOverlayEnabled, addTextOverlayElement, addShapeOverlayElement } from './overlay/overlayHelpers';
+import { moveOverlayElementUp, moveOverlayElementDown, deleteOverlayElement } from './overlay/overlayListHelpers';
+import type { OverlayElement } from '../../core/overlay/overlay.types';
 import '../../render/styles/background.css';
 import '../../render/styles/overlay.css';
 import '../../styles/config.css';
@@ -74,6 +80,13 @@ export function ConfigApp(): JSX.Element {
   const { openModal } = useModal();
   const autoscaleComputedRef = useRef<Set<string>>(new Set());
   const [showOverlayGuides, setShowOverlayGuides] = useState(false);
+  
+  // FAZ-5.B2: Overlay element selection state (UI-only, not persisted)
+  const [selectedOverlayElementId, setSelectedOverlayElementId] = useState<string | null>(null);
+  
+  // FAZ-5.E1.4: Overlay Preview background controls state (UI-only, not persisted)
+  const [showBackground, setShowBackground] = useState(true);
+  const [backgroundOpacity, setBackgroundOpacity] = useState(1.0);
   
   // Throttled publish mechanism
   const throttleTimerRef = useRef<number | null>(null);
@@ -500,6 +513,267 @@ export function ConfigApp(): JSX.Element {
     persistImmediate();
   }, [persistImmediate]);
 
+  // FAZ-5.B2: Overlay element interaction handlers
+  // Apply overlay element transform delta (for drag/keyboard)
+  const applyOverlayElementTransformDelta = useCallback(
+    (elementId: string, deltaX: number, deltaY: number) => {
+      if (!preset || !preset.overlay || !preset.overlay.enabled) {
+        return;
+      }
+
+      const viewport = getViewportDimensions();
+      
+      // Convert pixel deltas to normalized deltas
+      // x/y range: -3..3, conversion: delta_norm = delta_px / (viewport / 2)
+      const normalizedDeltaX = deltaX / (viewport.width / 2);
+      const normalizedDeltaY = deltaY / (viewport.height / 2);
+
+      const updatedPreset = updateOverlayElementTransform(
+        preset,
+        elementId,
+        normalizedDeltaX,
+        normalizedDeltaY
+      );
+
+      if (!updatedPreset) {
+        return;
+      }
+
+      // Update in-memory preset immediately
+      setPreset(updatedPreset);
+
+      // Update preview render model immediately (async resolution for local media)
+      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
+        const renderModel = presetToRenderModel(resolvedPreset);
+        setResolvedRenderModel(renderModel);
+      });
+
+      // Throttled publish to Kraken
+      throttledPublish(updatedPreset);
+    },
+    [preset, throttledPublish]
+  );
+
+  // Apply overlay element fontSize delta (for resize/wheel)
+  const applyOverlayElementFontSizeDelta = useCallback(
+    (elementId: string, fontSizeDelta: number) => {
+      if (!preset || !preset.overlay || !preset.overlay.enabled) {
+        return;
+      }
+
+      const updatedPreset = updateOverlayElementFontSize(preset, elementId, fontSizeDelta);
+
+      if (!updatedPreset) {
+        return;
+      }
+
+      // Update in-memory preset immediately
+      setPreset(updatedPreset);
+
+      // Update preview render model immediately (async resolution for local media)
+      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
+        const renderModel = presetToRenderModel(resolvedPreset);
+        setResolvedRenderModel(renderModel);
+      });
+
+      // Throttled publish to Kraken
+      throttledPublish(updatedPreset);
+    },
+    [preset, throttledPublish]
+  );
+
+  // Overlay element keyboard arrow handler
+  const handleOverlayElementKeyArrow = useCallback(
+    (elementId: string, direction: 'up' | 'down' | 'left' | 'right') => {
+      if (!preset || !preset.overlay || !preset.overlay.enabled) return;
+
+      const viewport = getViewportDimensions();
+      const step = 1; // 1-2 px per keypress (small step)
+      
+      let deltaX = 0;
+      let deltaY = 0;
+      
+      if (direction === 'left') deltaX = -step;
+      else if (direction === 'right') deltaX = step;
+      else if (direction === 'up') deltaY = -step;
+      else if (direction === 'down') deltaY = step;
+      
+      applyOverlayElementTransformDelta(elementId, deltaX, deltaY);
+      schedulePersist();
+    },
+    [preset, applyOverlayElementTransformDelta, schedulePersist]
+  );
+
+  // FAZ-5.C1: Overlay UI handlers
+  const handleToggleOverlayEnabled = useCallback(() => {
+    if (!preset) return;
+
+    const updatedPreset = toggleOverlayEnabled(preset);
+
+    // Update in-memory preset immediately
+    setPreset(updatedPreset);
+
+    // Update preview render model immediately (async resolution for local media)
+    createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
+      const renderModel = presetToRenderModel(resolvedPreset);
+      setResolvedRenderModel(renderModel);
+    });
+
+    // Throttled publish to Kraken
+    throttledPublish(updatedPreset);
+
+    // Persist immediately (toggle is a discrete action)
+    savePreset(updatedPreset);
+  }, [preset, throttledPublish]);
+
+  const handleAddTextOverlay = useCallback(() => {
+    if (!preset) return;
+
+    const updatedPreset = addTextOverlayElement(preset);
+
+    if (!updatedPreset) {
+      // Limit reached - could show alert here in future
+      return;
+    }
+
+    // Update in-memory preset immediately
+    setPreset(updatedPreset);
+
+    // Update preview render model immediately (async resolution for local media)
+    createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
+      const renderModel = presetToRenderModel(resolvedPreset);
+      setResolvedRenderModel(renderModel);
+    });
+
+    // Throttled publish to Kraken
+    throttledPublish(updatedPreset);
+
+    // Persist immediately (add is a discrete action)
+    savePreset(updatedPreset);
+  }, [preset, throttledPublish]);
+
+  // FAZ-5.D1.A1: Add SHAPE overlay element handler
+  const handleAddShapeOverlay = useCallback(() => {
+    if (!preset) return;
+
+    const updatedPreset = addShapeOverlayElement(preset);
+
+    if (!updatedPreset) {
+      // Limit reached - could show alert here in future
+      return;
+    }
+
+    // Update in-memory preset immediately
+    setPreset(updatedPreset);
+
+    // Update preview render model immediately (async resolution for local media)
+    createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
+      const renderModel = presetToRenderModel(resolvedPreset);
+      setResolvedRenderModel(renderModel);
+    });
+
+    // Throttled publish to Kraken
+    throttledPublish(updatedPreset);
+
+    // Persist immediately (add is a discrete action)
+    savePreset(updatedPreset);
+  }, [preset, throttledPublish]);
+
+  // FAZ-5.C2: Overlay list UI handlers
+  const handleOverlayElementMoveUp = useCallback(
+    (elementIndex: number) => {
+      if (!preset) return;
+
+      const updatedPreset = moveOverlayElementUp(preset, elementIndex);
+
+      if (!updatedPreset) {
+        return;
+      }
+
+      // Update in-memory preset immediately
+      setPreset(updatedPreset);
+
+      // Update preview render model immediately (async resolution for local media)
+      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
+        const renderModel = presetToRenderModel(resolvedPreset);
+        setResolvedRenderModel(renderModel);
+      });
+
+      // Throttled publish to Kraken
+      throttledPublish(updatedPreset);
+
+      // Persist immediately (reorder is a discrete action)
+      savePreset(updatedPreset);
+    },
+    [preset, throttledPublish]
+  );
+
+  const handleOverlayElementMoveDown = useCallback(
+    (elementIndex: number) => {
+      if (!preset) return;
+
+      const updatedPreset = moveOverlayElementDown(preset, elementIndex);
+
+      if (!updatedPreset) {
+        return;
+      }
+
+      // Update in-memory preset immediately
+      setPreset(updatedPreset);
+
+      // Update preview render model immediately (async resolution for local media)
+      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
+        const renderModel = presetToRenderModel(resolvedPreset);
+        setResolvedRenderModel(renderModel);
+      });
+
+      // Throttled publish to Kraken
+      throttledPublish(updatedPreset);
+
+      // Persist immediately (reorder is a discrete action)
+      savePreset(updatedPreset);
+    },
+    [preset, throttledPublish]
+  );
+
+  const handleOverlayElementDelete = useCallback(
+    (elementIndex: number) => {
+      if (!preset) return;
+
+      const elementToDelete = preset.overlay?.elements[elementIndex];
+      if (!elementToDelete) {
+        return;
+      }
+
+      const updatedPreset = deleteOverlayElement(preset, elementIndex);
+
+      if (!updatedPreset) {
+        return;
+      }
+
+      // If deleted element was selected, clear selection
+      if (selectedOverlayElementId === elementToDelete.id) {
+        setSelectedOverlayElementId(null);
+      }
+
+      // Update in-memory preset immediately
+      setPreset(updatedPreset);
+
+      // Update preview render model immediately (async resolution for local media)
+      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
+        const renderModel = presetToRenderModel(resolvedPreset);
+        setResolvedRenderModel(renderModel);
+      });
+
+      // Throttled publish to Kraken
+      throttledPublish(updatedPreset);
+
+      // Persist immediately (delete is a discrete action)
+      savePreset(updatedPreset);
+    },
+    [preset, selectedOverlayElementId, throttledPublish]
+  );
+
   // Handle intrinsic size available (autoscale computation + intrinsic persistence)
   const handleIntrinsicSizeAvailable = useCallback(
     async (width: number, height: number) => {
@@ -604,6 +878,11 @@ export function ConfigApp(): JSX.Element {
     [preset]
   );
 
+  // FAZ-5.B2: Clear overlay selection when preset changes
+  useEffect(() => {
+    setSelectedOverlayElementId(null);
+  }, [preset?.id]);
+
   // Reset autoscale tracking when media source changes
   useEffect(() => {
     if (!preset?.background.mediaOverlay) {
@@ -644,6 +923,7 @@ export function ConfigApp(): JSX.Element {
         onPresetApplied={handlePresetApplied}
       />
       <div className="config-content">
+        {/* Section 1: Background Preview + Background Settings */}
         <div className="config-sidebar">
           <div className="config-preview">
             <BackgroundPreview
@@ -669,6 +949,51 @@ export function ConfigApp(): JSX.Element {
             showOverlayGuides={showOverlayGuides}
             onOverlayGuidesChange={setShowOverlayGuides}
             mediaOverlaySource={preset.background.mediaOverlay?.source}
+          />
+        </div>
+        
+        {/* Divider */}
+        <div style={{
+          gridColumn: '1 / -1',
+          height: '1px',
+          backgroundColor: 'rgba(255, 255, 255, 0.06)',
+          margin: '24px 0',
+        }} />
+        
+        {/* Section 2: Overlay Preview + Overlay Settings */}
+        <div className="config-sidebar">
+          <div className="config-preview">
+            <OverlayPreview
+              model={resolvedRenderModel}
+              selectedOverlayElementId={selectedOverlayElementId}
+              onOverlayElementSelect={setSelectedOverlayElementId}
+              onOverlayElementTransformDelta={applyOverlayElementTransformDelta}
+              onOverlayElementFontSizeDelta={applyOverlayElementFontSizeDelta}
+              onOverlayElementKeyArrow={handleOverlayElementKeyArrow}
+              onOverlayElementDragEnd={persistImmediate}
+              showBackground={showBackground}
+              backgroundOpacity={backgroundOpacity}
+            />
+          </div>
+        </div>
+        <div className="background-panel">
+          {/* FAZ-5.C2: Overlay Settings Panel with Element List */}
+          <OverlaySettingsPanel
+            overlayEnabled={preset.overlay?.enabled ?? false}
+            elements={preset.overlay?.elements ?? []}
+            selectedElementId={selectedOverlayElementId}
+            canAddElement={(preset.overlay?.elements.length ?? 0) < 20}
+            onToggleEnabled={handleToggleOverlayEnabled}
+            onAddTextOverlay={handleAddTextOverlay}
+            onAddShapeOverlay={handleAddShapeOverlay}
+            onElementSelect={setSelectedOverlayElementId}
+            onElementMoveUp={handleOverlayElementMoveUp}
+            onElementMoveDown={handleOverlayElementMoveDown}
+            onElementDelete={handleOverlayElementDelete}
+            showBackground={showBackground}
+            backgroundOpacity={backgroundOpacity}
+            onShowBackgroundChange={setShowBackground}
+            onBackgroundOpacityChange={setBackgroundOpacity}
           />
         </div>
       </div>

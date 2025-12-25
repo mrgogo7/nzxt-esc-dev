@@ -8,7 +8,9 @@ import type {
   BackgroundSourceType,
 } from '../core/background/base/background.base.types';
 import type { MediaOverlayRenderModel } from '../core/background/media-overlay/media-overlay.types';
+import type { OverlayRenderModel, OverlayElementRenderModel, TextElementRenderData, ShapeElementRenderData } from '../core/overlay/overlay.types';
 import { mediaOverlayContract } from '../core/background/media-overlay/media-overlay.contract';
+import { overlayContract } from '../core/overlay/overlay.contract';
 import { getBackgroundContract } from '../core/background/registry';
 
 /**
@@ -121,9 +123,40 @@ export function presetToRenderModel(preset: Preset): RenderModel {
       }
     }
 
+    // FAZ-5.A3: Overlay pass-through (NO-OP)
+    // Overlay is resolved from preset but not rendered.
+    // Overlay is set to undefined if:
+    // - preset.overlay is undefined (normal case for existing presets)
+    // - preset.overlay.enabled is false
+    // - overlay normalization/validation fails
+    //
+    // No render logic is executed for overlay in FAZ-5.A3.
+    // Overlay rendering will be implemented in FAZ-5.B.
+    let overlayRenderModel: OverlayRenderModel | undefined;
+
+    const presetOverlay = preset?.overlay;
+    if (presetOverlay  && presetOverlay.enabled) {
+      try {
+        // Normalize overlay (defensive, may fail)
+        const normalizedOverlay = overlayContract.normalize(presetOverlay);
+        
+        // Validate normalized overlay (defensive, may fail)
+        if (overlayContract.validate(normalizedOverlay)) {
+          // Resolve to render model (NO-OP in FAZ-5.A3, returns placeholder)
+          overlayRenderModel = overlayContract.toRenderModel(normalizedOverlay);
+        }
+        // If validation fails, overlayRenderModel remains undefined (permissive)
+      } catch {
+        // On any overlay failure, ignore overlay (permissive, do not crash)
+        overlayRenderModel = undefined;
+      }
+    }
+    // If overlay is undefined or disabled, overlayRenderModel remains undefined
+
     return {
       background: baseRenderModel,
       mediaOverlay: mediaOverlayRenderModel,
+      overlay: overlayRenderModel,
     };
   } catch {
     return DEFAULT_RENDER_MODEL;
@@ -211,4 +244,124 @@ export function renderMediaOverlay(
     worldTransform,
     hasIntrinsic,
   };
+}
+
+/**
+ * Computes render information for overlay elements on top of the background.
+ * Returns null when no overlay is present or disabled.
+ *
+ * FAZ-5.B1: TEXT overlay rendering.
+ *
+ * Architecture:
+ * - Overlay elements are absolutely positioned
+ * - Transform is applied via CSS (position, rotation)
+ * - Bounding box is render-computed (not persisted)
+ * - TEXT uses fontSize (content-driven sizing), not width/height
+ *
+ * Preview and Kraken use identical render math (parity guarantee).
+ */
+export function renderOverlay(
+  model: RenderModel,
+  viewport: ViewportDimensions
+): OverlayElementRenderModel[] | null {
+  const overlay = model.overlay;
+
+  if (!overlay || !overlay.enabled || overlay.elements.length === 0) {
+    return null;
+  }
+
+  // Return elements as-is (transform and renderData already resolved)
+  // Render math (normalized → pixels) happens in renderOverlayElement()
+  return overlay.elements;
+}
+
+/**
+ * Computes CSS styles for a TEXT overlay element.
+ *
+ * FAZ-5.B1: TEXT element rendering.
+ *
+ * Render math:
+ * - x/y: normalized -3..3 → pixel offsets (viewport-relative)
+ * - rotateDeg: degrees → CSS rotate
+ * - fontSize: pixels (direct)
+ * - color: hex string (direct)
+ *
+ * Positioning:
+ * - Element is absolutely positioned at viewport center + offset
+ * - Transform origin is element center
+ * - Rotation pivots at element center
+ *
+ * This function is pure and deterministic (same input → same output).
+ * Preview and Kraken use identical math (parity guarantee).
+ */
+export function renderOverlayElement(
+  element: OverlayElementRenderModel,
+  viewport: ViewportDimensions
+): CSSStyleProperties | null {
+  // Convert normalized x/y offsets to pixel offsets
+  // x/y range: -3..3, converted to pixels: offset * (viewport / 2)
+  // For 640x640 viewport: -3 = -960px, +3 = +960px
+  const pixelX = element.transform.x * (viewport.width / 2);
+  const pixelY = element.transform.y * (viewport.height / 2);
+
+  // Position element at viewport center + offset
+  // Transform origin is center (for rotation pivot)
+  const positionStyle: CSSStyleProperties = {
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    transform: `translate(${pixelX}px, ${pixelY}px) rotate(${element.transform.rotateDeg}deg)`,
+    transformOrigin: 'center center',
+  };
+
+  if (element.elementType === 'text') {
+    const renderData = element.renderData as TextElementRenderData;
+    if (!renderData || typeof renderData !== 'object') {
+      return null;
+    }
+
+    // TEXT-specific styles
+    // fontSize is applied directly (content-driven sizing)
+    // color is applied directly
+    // Bounding box is render-computed (not persisted)
+    const textStyle: CSSStyleProperties = {
+      fontSize: `${renderData.fontSize}px`,
+      color: renderData.color,
+      whiteSpace: 'nowrap', // Single-line only (no wrapping in FAZ-5.B1)
+      userSelect: 'none',
+      pointerEvents: 'none', // No interaction in FAZ-5.D1.A
+    };
+
+    return {
+      ...positionStyle,
+      ...textStyle,
+    };
+  } else if (element.elementType === 'shape') {
+    const renderData = element.renderData as ShapeElementRenderData;
+    if (!renderData || typeof renderData !== 'object') {
+      return null;
+    }
+
+    // FAZ-5.D1.A: SHAPE-specific styles
+    // width/height are applied directly (box-driven sizing)
+    // radius, fillColor, borderColor are applied directly
+    const shapeStyle: CSSStyleProperties = {
+      width: `${renderData.width}px`,
+      height: `${renderData.height}px`,
+      borderRadius: `${renderData.radius}px`,
+      backgroundColor: renderData.fillColor,
+      border: `1px solid ${renderData.borderColor}`,
+      boxSizing: 'border-box',
+      userSelect: 'none',
+      pointerEvents: 'none', // No interaction in FAZ-5.D1.A
+    };
+
+    return {
+      ...positionStyle,
+      ...shapeStyle,
+    };
+  }
+
+  // Unknown element type
+  return null;
 }

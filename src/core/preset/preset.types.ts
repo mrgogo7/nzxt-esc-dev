@@ -2,13 +2,19 @@
 
 import type { ColorBackgroundConfig } from '../background/color/color.types';
 import type { BackgroundMediaOverlayConfig } from '../background/media-overlay/media-overlay.types';
+import type { OverlayConfig } from '../overlay/overlay.types';
 
 /**
- * FAZ-0/FAZ-3A preset structure.
+ * FAZ-0/FAZ-3A/FAZ-5 preset structure.
  *
  * Background consists of:
  * - base: always a color/gradient background
  * - mediaOverlay (optional): single media overlay on top of base
+ *
+ * Overlay (FAZ-5):
+ * - overlay (optional): overlay elements layer (text, metrics, etc.)
+ * - Overlay is owned by the preset (single canonical state)
+ * - Overlay is absent by default for existing presets (backward compatible)
  */
 export interface Preset {
   id: string;
@@ -46,6 +52,17 @@ export interface Preset {
      */
     mediaOverlay?: BackgroundMediaOverlayConfig;
   };
+  /**
+   * Optional overlay configuration (FAZ-5).
+   *
+   * Overlay state lives in Preset.overlay (single canonical state).
+   * Overlay is optional (backward compatible with existing presets).
+   * Overlay is not initialized automatically on preset creation.
+   *
+   * FAZ-5.A2: Overlay is normalized and validated on preset load.
+   * Invalid overlay is removed defensively (does not crash).
+   */
+  overlay?: OverlayConfig;
 }
 
 /**

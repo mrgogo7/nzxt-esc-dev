@@ -7,6 +7,7 @@ import type { RenderModel } from '../../../render/model/render.types';
 import { renderBackground, renderMediaOverlay } from '../../../render/engine';
 import { getViewportDimensions } from '../../../render/viewport';
 import { useTranslation } from '../../../i18n';
+import './preview.css';
 
 interface BackgroundPreviewProps {
   model: RenderModel;
@@ -52,13 +53,16 @@ export function BackgroundPreview({
   const isDraggingRef = useRef(false);
   const lastPointerPosRef = useRef<{ x: number; y: number } | null>(null);
   const persistDebounceTimerRef = useRef<number | null>(null);
+  
+  // FAZ-5.C1.1: Overlay interaction handlers removed (now in OverlayPreview)
 
   // Render at LCD viewport size (transform math uses LCD viewport)
   const backgroundStyle = renderBackground(model, lcdViewport);
-  const overlay = renderMediaOverlay(model, lcdViewport);
+  const mediaOverlay = renderMediaOverlay(model, lcdViewport);
+  // FAZ-5.C1.1: Overlay elements removed (now in OverlayPreview)
 
   // Track media source changes
-  const currentMediaSrc = overlay?.src || null;
+  const currentMediaSrc = mediaOverlay?.src || null;
   useEffect(() => {
     if (currentMediaSrc !== lastMediaSrcRef.current) {
       lastMediaSrcRef.current = currentMediaSrc;
@@ -174,6 +178,8 @@ export function BackgroundPreview({
     }
   };
 
+  // FAZ-5.C1.1: Overlay interaction handlers removed (now in OverlayPreview)
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -184,40 +190,24 @@ export function BackgroundPreview({
   }, []);
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: '12px',
-    }}>
-      {/* Preview wrapper: visual scaling only, no transform math */}
+    <div>
+      {/* FAZ-5.D2.3: Preview Frame - UI card context (250x250), owns layout only */}
       <div
         ref={containerRef}
         tabIndex={hasMediaOverlay ? 0 : undefined}
-        style={{
-          width: `${previewSize}px`,
-          height: `${previewSize}px`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          overflow: 'hidden',
-          cursor: hasMediaOverlay ? 'grab' : 'default',
-          outline: 'none',
-        }}
+        className={`preview-frame ${hasMediaOverlay ? 'preview-frame-interactive' : ''}`}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onWheel={handleWheel}
         onKeyDown={handleKeyDown}
       >
-        {/* Inner container: rendered at LCD viewport size, scaled down visually via CSS */}
-        {/* This is the camera model - CSS transform does NOT affect render math */}
+        {/* FAZ-5.D2.3: Scaling Wrapper - scales 640x640 down to UI size */}
+        {/* Dynamic transform remains inline (computed previewScale) */}
         <div
+          className="preview-scale"
           style={{
-            width: `${lcdViewport.width}px`,
-            height: `${lcdViewport.height}px`,
             transform: `scale(${previewScale})`,
-            transformOrigin: 'center center',
           }}
         >
           <div
@@ -226,24 +216,23 @@ export function BackgroundPreview({
               ...backgroundStyle,
               width: `${lcdViewport.width}px`,
               height: `${lcdViewport.height}px`,
-              border: '14px solid #000',
               borderRadius: '50%',
               boxSizing: 'border-box',
             }}
           >
-            {overlay && (
+            {mediaOverlay && (
               <div className="render-media-overlay">
                 <div
                   className="render-media-world"
                   style={{
-                    width: `${overlay.worldWidth}px`,
-                    height: `${overlay.worldHeight}px`,
-                    marginLeft: `-${overlay.worldWidth / 2}px`,
-                    marginTop: `-${overlay.worldHeight / 2}px`,
-                    transform: overlay.worldTransform,
+                    width: `${mediaOverlay.worldWidth}px`,
+                    height: `${mediaOverlay.worldHeight}px`,
+                    marginLeft: `-${mediaOverlay.worldWidth / 2}px`,
+                    marginTop: `-${mediaOverlay.worldHeight / 2}px`,
+                    transform: mediaOverlay.worldTransform,
                   }}
                 >
-                  {overlay.source === 'youtube' ? (
+                  {mediaOverlay.source === 'youtube' ? (
                     // YouTube proxy: red rectangle representing video footprint
                     <div
                       style={{
@@ -286,17 +275,17 @@ export function BackgroundPreview({
                         {t('backgroundMediaYoutubeProxyDescription')}
                       </div>
                     </div>
-                  ) : overlay.primitive === 'image' ? (
+                  ) : mediaOverlay.primitive === 'image' ? (
                     <img
                       className="render-media-overlay-media"
-                      src={overlay.src}
+                      src={mediaOverlay.src}
                       alt=""
                       onLoad={handleImageLoad}
                     />
                   ) : (
                     <video
                       className="render-media-overlay-media"
-                      src={overlay.src}
+                      src={mediaOverlay.src}
                       autoPlay
                       loop
                       muted
@@ -345,8 +334,11 @@ export function BackgroundPreview({
                 </div>
               </div>
             )}
+            {/* FAZ-5.C1.1: Overlay elements removed from BackgroundPreview */}
+            {/* Overlay elements are now rendered in dedicated OverlayPreview component */}
           </div>
         </div>
+        {/* FAZ-5.E1.2: preview-border element removed - border visuals not needed */}
       </div>
     </div>
   );

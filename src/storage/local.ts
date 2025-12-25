@@ -5,6 +5,8 @@ import type { Preset, ActivePresetState } from '../core/preset/preset.types';
 import { createDefaultPreset } from '../core/preset/preset.defaults';
 import { normalizeMediaOverlayTransform } from '../core/background/media-overlay/media-overlay.defaults';
 import { isValidBackgroundMediaOverlayShape } from '../core/background/media-overlay/media-overlay.validate';
+import { overlayContract } from '../core/overlay/overlay.contract';
+import { isValidOverlayConfigShape } from '../core/overlay/overlay.validate';
 import { putLocalMedia, getLocalMedia, deleteLocalMedia } from './indexeddb';
 
 /**
@@ -181,6 +183,15 @@ function isValidPreset(obj: unknown): obj is Preset {
     }
   }
 
+  // overlay is optional (FAZ-5); if present validate SHAPE only
+  // Full validation happens in normalizeState() via overlay contract
+  const overlay = (p as any).overlay as unknown;
+  if (overlay !== undefined && overlay !== null) {
+    if (!isValidOverlayConfigShape(overlay)) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -215,22 +226,73 @@ function normalizeState(state: ActivePresetState): ActivePresetState {
     }
 
     const background = preset.background;
-    const overlay = background.mediaOverlay;
+    const mediaOverlay = background.mediaOverlay;
 
-    if (overlay) {
-      const normalizedTransform = normalizeMediaOverlayTransform(overlay.transform);
+    if (mediaOverlay) {
+      const normalizedTransform = normalizeMediaOverlayTransform(mediaOverlay.transform);
 
       presets[id] = {
         ...preset,
         background: {
           ...background,
           mediaOverlay: {
-            ...overlay,
+            ...mediaOverlay,
             transform: normalizedTransform,
           },
         },
       };
     }
+  }
+
+  // Normalize overlay configuration (FAZ-5.A2)
+  // Overlay is normalized defensively: invalid overlay is removed (does not crash)
+  // Overlay normalization is pure and deterministic (no side effects)
+  for (const id of presetIds) {
+    const preset = presets[id];
+    if (!preset) {
+      continue;
+    }
+
+    const overlay = preset.overlay;
+
+    if (overlay !== undefined && overlay !== null) {
+      try {
+        // Validate overlay shape first (defensive check)
+        if (!isValidOverlayConfigShape(overlay)) {
+          // Invalid overlay shape: remove defensively (permissive, do not crash)
+          console.warn(`Invalid overlay shape in preset ${id}, removing overlay`);
+          const { overlay: _, ...presetWithoutOverlay } = preset;
+          presets[id] = presetWithoutOverlay;
+          continue;
+        }
+
+        // Normalize overlay using overlay contract
+        // Normalization is pure and deterministic (no side effects)
+        const normalizedOverlay = overlayContract.normalize(overlay);
+
+        // Validate normalized overlay (defensive check)
+        if (!overlayContract.validate(normalizedOverlay)) {
+          // Normalized overlay is still invalid: remove defensively
+          console.warn(`Normalized overlay is invalid in preset ${id}, removing overlay`);
+          const { overlay: _, ...presetWithoutOverlay } = preset;
+          presets[id] = presetWithoutOverlay;
+          continue;
+        }
+
+        // Overlay is valid: update preset with normalized overlay
+        // Immutable update (no mutation of input objects)
+        presets[id] = {
+          ...preset,
+          overlay: normalizedOverlay,
+        };
+      } catch (error) {
+        // Overlay normalization failed: remove defensively (permissive, do not crash)
+        console.warn(`Failed to normalize overlay in preset ${id}:`, error);
+        const { overlay: _, ...presetWithoutOverlay } = preset;
+        presets[id] = presetWithoutOverlay;
+      }
+    }
+    // If overlay is undefined, leave it as undefined (normal case, no action needed)
   }
 
   // Normalize isDefault: ensure exactly one preset has isDefault: true

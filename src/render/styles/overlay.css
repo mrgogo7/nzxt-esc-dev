@@ -30,3 +30,36 @@
   height: 100%;
 }
 
+/* FAZ-5.B1: Overlay elements container */
+.render-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* FAZ-5.B1: Overlay element base styles */
+.render-overlay-element {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* FAZ-5.B1: TEXT overlay element styles */
+.render-overlay-text {
+  /* TEXT element uses fontSize (content-driven sizing) */
+  /* Bounding box is render-computed, not persisted */
+  /* Transform (position, rotation) is applied via inline styles from render engine */
+}
+
+/* FAZ-5.B2: Selected overlay element */
+.render-overlay-element-selected {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+/* FAZ-5.B2: Resize handle */
+.render-overlay-resize-handle {
+  /* Resize handle styles are applied via inline styles */
+  /* Positioned absolutely at bottom-right corner */
+}
+
