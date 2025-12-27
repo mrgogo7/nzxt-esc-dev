@@ -14,6 +14,8 @@ export const DEFAULT_TEXT_ELEMENT_CONFIG: TextElementConfig = {
   content: 'Text',
   color: '#FFFFFF',
   fontSize: 24,
+  fontFamily: 'nzxt-extrabold',
+  // outlineWidth and outlineColor are optional (no defaults)
 };
 
 /**
@@ -35,9 +37,10 @@ export const DEFAULT_TEXT_ELEMENT: TextElementConfigComplete = {
  * Normalizes a TEXT element configuration.
  *
  * Normalization rules:
- * - Fill missing fields with defaults
+ * - Fill missing required fields with defaults
  * - Clamp fontSize to valid range (1..200)
- * - Normalize base transform
+ * - Validate and clamp optional fields (fontFamily, outlineWidth, outlineColor)
+ * - outlineColor default is NOT set at normalize level (set at UI/updater level when first opened)
  *
  * This function is pure and side-effect free.
  */
@@ -61,7 +64,26 @@ export function normalizeTextElementConfig(
       ? Math.max(1, Math.min(200, config.fontSize))
       : DEFAULT_TEXT_ELEMENT_CONFIG.fontSize;
 
-  return { content, color, fontSize };
+  // fontFamily: default 'nzxt-extrabold' if missing/invalid
+  const fontFamily =
+    typeof config.fontFamily === 'string' && config.fontFamily.length > 0
+      ? config.fontFamily
+      : DEFAULT_TEXT_ELEMENT_CONFIG.fontFamily;
+
+  // outlineWidth: validate + clamp only, no default (undefined if missing/invalid)
+  const outlineWidth =
+    typeof config.outlineWidth === 'number' && Number.isFinite(config.outlineWidth) && config.outlineWidth >= 0
+      ? Math.max(0, Math.min(20, config.outlineWidth))
+      : undefined;
+
+  // outlineColor: validate only, no default (undefined if missing/invalid)
+  // Default (#000000) is set at UI/updater level when outline is first opened, not here
+  const outlineColor =
+    typeof config.outlineColor === 'string' && config.outlineColor.length > 0
+      ? config.outlineColor
+      : undefined;
+
+  return { content, color, fontSize, fontFamily, outlineWidth, outlineColor };
 }
 
 /**

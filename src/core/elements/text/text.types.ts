@@ -28,6 +28,26 @@ export interface TextElementConfig {
    * Resize handles affect fontSize, not width/height.
    */
   fontSize: number;
+
+  /**
+   * Font family name (e.g., "nzxt-extrabold").
+   * Optional, defaults to "nzxt-extrabold" if missing.
+   */
+  fontFamily?: string;
+
+  /**
+   * Outline (stroke) width in pixels.
+   * Optional, 0 means no outline.
+   * If > 0, outlineColor must be set (via UI/updater, not normalize).
+   */
+  outlineWidth?: number;
+
+  /**
+   * Outline (stroke) color (hex string, e.g., "#000000").
+   * Optional, only used if outlineWidth > 0.
+   * Default (#000000) is set at UI/updater level when outline is first opened, not at normalize level.
+   */
+  outlineColor?: string;
 }
 
 /**

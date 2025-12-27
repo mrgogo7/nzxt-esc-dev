@@ -28,6 +28,21 @@ export interface TextElementRenderData {
    * Font size in pixels.
    */
   fontSize: number;
+
+  /**
+   * Font family name (optional).
+   */
+  fontFamily?: string;
+
+  /**
+   * Outline width in pixels (optional).
+   */
+  outlineWidth?: number;
+
+  /**
+   * Outline color (hex string, optional).
+   */
+  outlineColor?: string;
 }
 
 /**
@@ -117,6 +132,17 @@ export const textElementContract: TextElementContract = {
       return false;
     }
 
+    // Optional fields: permissive validation (if present, must be valid type)
+    if (c.fontFamily !== undefined && typeof c.fontFamily !== 'string') {
+      return false;
+    }
+    if (c.outlineWidth !== undefined && (typeof c.outlineWidth !== 'number' || !Number.isFinite(c.outlineWidth) || c.outlineWidth < 0)) {
+      return false;
+    }
+    if (c.outlineColor !== undefined && (typeof c.outlineColor !== 'string' || c.outlineColor.length === 0)) {
+      return false;
+    }
+
     return true;
   },
 
@@ -125,12 +151,15 @@ export const textElementContract: TextElementContract = {
   },
 
   toRenderData(element: TextElementConfigComplete): TextElementRenderData {
-    // TEXT element render data is simple: just pass through config
-    // Render layer applies fontSize and color directly
+    // TEXT element render data: pass through config fields
+    // Render layer applies fontSize, color, fontFamily, and outline directly
     return {
       content: element.config.content,
       color: element.config.color,
       fontSize: element.config.fontSize,
+      fontFamily: element.config.fontFamily,
+      outlineWidth: element.config.outlineWidth,
+      outlineColor: element.config.outlineColor,
     };
   },
 };

@@ -30,6 +30,36 @@ interface ColorPickerProps {
    * Default: 294
    */
   height?: number;
+  /**
+   * Hide color type buttons (solid/gradient toggle).
+   * Used for text/outline color pickers (gradient not supported).
+   * Default: false
+   */
+  hideColorTypeBtns?: boolean;
+  /**
+   * Hide gradient type selector (linear/radial).
+   * Used for text/outline color pickers (gradient not supported).
+   * Default: false
+   */
+  hideGradientType?: boolean;
+  /**
+   * Hide gradient angle control.
+   * Used for text/outline color pickers (gradient not supported).
+   * Default: false
+   */
+  hideGradientAngle?: boolean;
+  /**
+   * Hide gradient stop controls.
+   * Used for text/outline color pickers (gradient not supported).
+   * Default: false
+   */
+  hideGradientStop?: boolean;
+  /**
+   * Hide gradient controls (all gradient-related UI).
+   * Used for text/outline color pickers (gradient not supported).
+   * Default: false
+   */
+  hideGradientControls?: boolean;
 }
 
 /**
@@ -43,6 +73,11 @@ export function ColorPicker({
   hideInputType = false,
   width = 294,
   height = 150,
+  hideColorTypeBtns = false,
+  hideGradientType = false,
+  hideGradientAngle = false,
+  hideGradientStop = false,
+  hideGradientControls = false,
 }: ColorPickerProps): JSX.Element {
   return (
     <div className="unified-color-picker-wrapper">
@@ -53,6 +88,11 @@ export function ColorPicker({
         hideControls={false}
         hidePresets={false}
         hideInputType={hideInputType}
+        hideColorTypeBtns={hideColorTypeBtns}
+        hideGradientType={hideGradientType}
+        hideGradientAngle={hideGradientAngle}
+        hideGradientStop={hideGradientStop}
+        hideGradientControls={hideGradientControls}
         width={width}
         height={height}
       />

@@ -323,14 +323,28 @@ export function renderOverlayElement(
     // TEXT-specific styles
     // fontSize is applied directly (content-driven sizing)
     // color is applied directly
+    // fontFamily is applied directly (defaults to 'nzxt-extrabold' if missing)
+    // fontWeight is set to 800 (extrabold) to match @font-face definition
+    // fontStyle is set to normal (only style available)
     // Bounding box is render-computed (not persisted)
     const textStyle: CSSStyleProperties = {
       fontSize: `${renderData.fontSize}px`,
       color: renderData.color,
+      fontFamily: renderData.fontFamily || 'nzxt-extrabold',
+      fontWeight: 800, // extrabold weight (matches @font-face definition)
+      fontStyle: 'normal', // only style available
       whiteSpace: 'nowrap', // Single-line only (no wrapping in FAZ-5.B1)
       userSelect: 'none',
       pointerEvents: 'none', // No interaction in FAZ-5.D1.A
     };
+
+    // Outline (stroke) rendering
+    // Only apply outline if outlineWidth > 0 and outlineColor is set
+    if (renderData.outlineWidth && renderData.outlineWidth > 0 && renderData.outlineColor) {
+      textStyle.WebkitTextStroke = `${renderData.outlineWidth}px ${renderData.outlineColor}`;
+      textStyle.WebkitTextStrokeWidth = `${renderData.outlineWidth}px`;
+      textStyle.WebkitTextStrokeColor = renderData.outlineColor;
+    }
 
     return {
       ...positionStyle,

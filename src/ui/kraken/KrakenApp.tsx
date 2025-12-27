@@ -14,6 +14,7 @@ import { localMediaResolver } from '../../storage/localMediaResolver';
 import '../../render/styles/background.css';
 import '../../render/styles/overlay.css';
 import '../../styles/kraken.css';
+import '../../styles/root.css';
 
 /**
  * Creates a render input from a preset by resolving local media to objectURLs.

@@ -22,9 +22,14 @@ import { updateOverlayElementTransform, updateOverlayElementFontSize } from './o
 import { toggleOverlayEnabled, addTextOverlayElement, addShapeOverlayElement } from './overlay/overlayHelpers';
 import { moveOverlayElementUp, moveOverlayElementDown, deleteOverlayElement } from './overlay/overlayListHelpers';
 import type { OverlayElement } from '../../core/overlay/overlay.types';
+import type { TextElementConfigComplete } from '../../core/elements/text/text.types';
+import type { OverlayConfig } from '../../core/overlay/overlay.types';
+import { normalizeTextElementConfig } from '../../core/elements/text/text.defaults';
+import { normalizeBaseTransform } from '../../core/overlay/overlay.defaults';
 import '../../render/styles/background.css';
 import '../../render/styles/overlay.css';
 import '../../styles/config.css';
+import '../../styles/root.css';
 
 /**
  * Creates a render input from a preset by resolving local media to objectURLs.
@@ -87,6 +92,13 @@ export function ConfigApp(): JSX.Element {
   // FAZ-5.E1.4: Overlay Preview background controls state (UI-only, not persisted)
   const [showBackground, setShowBackground] = useState(true);
   const [backgroundOpacity, setBackgroundOpacity] = useState(1.0);
+  
+  // FAZ-6B: Element list collapse state (UI-only, not persisted)
+  const [collapsedElementIds, setCollapsedElementIds] = useState<Set<string>>(new Set());
+  
+  // FAZ-6B: Text color drawer state (UI-only, not persisted)
+  const [textColorDrawerOpen, setTextColorDrawerOpen] = useState(false);
+  const [textColorDrawerElementId, setTextColorDrawerElementId] = useState<string | null>(null);
   
   // Throttled publish mechanism
   const throttleTimerRef = useRef<number | null>(null);
@@ -582,6 +594,363 @@ export function ConfigApp(): JSX.Element {
     [preset, throttledPublish]
   );
 
+  // FAZ-6B: Text element update helper functions (immutable pattern, not exported)
+  // These helpers follow the same pattern as overlayUpdates.ts but are kept in ConfigApp.tsx
+  // to avoid export name conflicts and maintain UI-specific logic (e.g., outlineColor default on first open)
+
+  /**
+   * Helper: Update text element content.
+   * Immutable update pattern.
+   */
+  const updateTextElementContentHelper = useCallback(
+    (preset: Preset, elementId: string, content: string): Preset | null => {
+      if (!preset.overlay || !preset.overlay.enabled) {
+        return null;
+      }
+
+      const elementIndex = preset.overlay.elements.findIndex((el) => el.id === elementId);
+      if (elementIndex === -1) {
+        return null;
+      }
+
+      const element = preset.overlay.elements[elementIndex];
+      if (element.elementType !== 'text') {
+        return null;
+      }
+
+      const textElement = element as TextElementConfigComplete;
+
+      // Normalize config with new content
+      const normalizedConfig = normalizeTextElementConfig({
+        ...textElement.config,
+        content,
+      });
+
+      // Create new element (immutable)
+      const updatedElement: TextElementConfigComplete = {
+        ...textElement,
+        config: normalizedConfig,
+      };
+
+      // Create new elements array (immutable)
+      const updatedElements: OverlayElement[] = [
+        ...preset.overlay.elements.slice(0, elementIndex),
+        updatedElement,
+        ...preset.overlay.elements.slice(elementIndex + 1),
+      ];
+
+      // Create new overlay (immutable)
+      const updatedOverlay: OverlayConfig = {
+        ...preset.overlay,
+        elements: updatedElements,
+      };
+
+      // Create new preset (immutable)
+      return {
+        ...preset,
+        overlay: updatedOverlay,
+      };
+    },
+    []
+  );
+
+  /**
+   * Helper: Update text element color.
+   * Immutable update pattern.
+   */
+  const updateTextElementColorHelper = useCallback(
+    (preset: Preset, elementId: string, color: string): Preset | null => {
+      if (!preset.overlay || !preset.overlay.enabled) {
+        return null;
+      }
+
+      const elementIndex = preset.overlay.elements.findIndex((el) => el.id === elementId);
+      if (elementIndex === -1) {
+        return null;
+      }
+
+      const element = preset.overlay.elements[elementIndex];
+      if (element.elementType !== 'text') {
+        return null;
+      }
+
+      const textElement = element as TextElementConfigComplete;
+
+      // Normalize config with new color
+      const normalizedConfig = normalizeTextElementConfig({
+        ...textElement.config,
+        color,
+      });
+
+      // Create new element (immutable)
+      const updatedElement: TextElementConfigComplete = {
+        ...textElement,
+        config: normalizedConfig,
+      };
+
+      // Create new elements array (immutable)
+      const updatedElements: OverlayElement[] = [
+        ...preset.overlay.elements.slice(0, elementIndex),
+        updatedElement,
+        ...preset.overlay.elements.slice(elementIndex + 1),
+      ];
+
+      // Create new overlay (immutable)
+      const updatedOverlay: OverlayConfig = {
+        ...preset.overlay,
+        elements: updatedElements,
+      };
+
+      // Create new preset (immutable)
+      return {
+        ...preset,
+        overlay: updatedOverlay,
+      };
+    },
+    []
+  );
+
+  /**
+   * Helper: Update text element font family.
+   * Immutable update pattern.
+   */
+  const updateTextElementFontFamilyHelper = useCallback(
+    (preset: Preset, elementId: string, fontFamily: string): Preset | null => {
+      if (!preset.overlay || !preset.overlay.enabled) {
+        return null;
+      }
+
+      const elementIndex = preset.overlay.elements.findIndex((el) => el.id === elementId);
+      if (elementIndex === -1) {
+        return null;
+      }
+
+      const element = preset.overlay.elements[elementIndex];
+      if (element.elementType !== 'text') {
+        return null;
+      }
+
+      const textElement = element as TextElementConfigComplete;
+
+      // Normalize config with new fontFamily
+      const normalizedConfig = normalizeTextElementConfig({
+        ...textElement.config,
+        fontFamily,
+      });
+
+      // Create new element (immutable)
+      const updatedElement: TextElementConfigComplete = {
+        ...textElement,
+        config: normalizedConfig,
+      };
+
+      // Create new elements array (immutable)
+      const updatedElements: OverlayElement[] = [
+        ...preset.overlay.elements.slice(0, elementIndex),
+        updatedElement,
+        ...preset.overlay.elements.slice(elementIndex + 1),
+      ];
+
+      // Create new overlay (immutable)
+      const updatedOverlay: OverlayConfig = {
+        ...preset.overlay,
+        elements: updatedElements,
+      };
+
+      // Create new preset (immutable)
+      return {
+        ...preset,
+        overlay: updatedOverlay,
+      };
+    },
+    []
+  );
+
+  /**
+   * Helper: Update text element outline (width and color).
+   * Immutable update pattern.
+   * Special logic: If outlineWidth > 0 and outlineColor is undefined, set default #000000
+   * (This is the only place where outlineColor default is set, not at normalize level).
+   */
+  const updateTextElementOutlineHelper = useCallback(
+    (preset: Preset, elementId: string, outlineWidth: number, outlineColor?: string): Preset | null => {
+      if (!preset.overlay || !preset.overlay.enabled) {
+        return null;
+      }
+
+      const elementIndex = preset.overlay.elements.findIndex((el) => el.id === elementId);
+      if (elementIndex === -1) {
+        return null;
+      }
+
+      const element = preset.overlay.elements[elementIndex];
+      if (element.elementType !== 'text') {
+        return null;
+      }
+
+      const textElement = element as TextElementConfigComplete;
+
+      // Special logic: If outlineWidth > 0 and outlineColor is undefined, set default #000000
+      // This is the only place where outlineColor default is set (not at normalize level)
+      const finalOutlineColor = outlineWidth > 0 && outlineColor === undefined
+        ? '#000000'
+        : outlineColor;
+
+      // Normalize config with new outline
+      const normalizedConfig = normalizeTextElementConfig({
+        ...textElement.config,
+        outlineWidth,
+        outlineColor: finalOutlineColor,
+      });
+
+      // Create new element (immutable)
+      const updatedElement: TextElementConfigComplete = {
+        ...textElement,
+        config: normalizedConfig,
+      };
+
+      // Create new elements array (immutable)
+      const updatedElements: OverlayElement[] = [
+        ...preset.overlay.elements.slice(0, elementIndex),
+        updatedElement,
+        ...preset.overlay.elements.slice(elementIndex + 1),
+      ];
+
+      // Create new overlay (immutable)
+      const updatedOverlay: OverlayConfig = {
+        ...preset.overlay,
+        elements: updatedElements,
+      };
+
+      // Create new preset (immutable)
+      return {
+        ...preset,
+        overlay: updatedOverlay,
+      };
+    },
+    []
+  );
+
+  /**
+   * Helper: Update text element rotation.
+   * Immutable update pattern.
+   */
+  const updateTextElementRotateHelper = useCallback(
+    (preset: Preset, elementId: string, rotateDeg: number): Preset | null => {
+      if (!preset.overlay || !preset.overlay.enabled) {
+        return null;
+      }
+
+      const elementIndex = preset.overlay.elements.findIndex((el) => el.id === elementId);
+      if (elementIndex === -1) {
+        return null;
+      }
+
+      const element = preset.overlay.elements[elementIndex];
+      if (element.elementType !== 'text') {
+        return null;
+      }
+
+      const textElement = element as TextElementConfigComplete;
+
+      // Calculate new transform (immutable)
+      const newTransform = {
+        x: textElement.transform.x,
+        y: textElement.transform.y,
+        rotateDeg: rotateDeg,
+      };
+
+      // Normalize transform (clamps to valid ranges)
+      const normalizedTransform = normalizeBaseTransform(newTransform);
+
+      // Create new element (immutable)
+      const updatedElement: TextElementConfigComplete = {
+        ...textElement,
+        transform: normalizedTransform,
+      };
+
+      // Create new elements array (immutable)
+      const updatedElements: OverlayElement[] = [
+        ...preset.overlay.elements.slice(0, elementIndex),
+        updatedElement,
+        ...preset.overlay.elements.slice(elementIndex + 1),
+      ];
+
+      // Create new overlay (immutable)
+      const updatedOverlay: OverlayConfig = {
+        ...preset.overlay,
+        elements: updatedElements,
+      };
+
+      // Create new preset (immutable)
+      return {
+        ...preset,
+        overlay: updatedOverlay,
+      };
+    },
+    []
+  );
+
+  /**
+   * Helper: Update text element offset (x, y).
+   * Immutable update pattern.
+   */
+  const updateTextElementOffsetHelper = useCallback(
+    (preset: Preset, elementId: string, x: number, y: number): Preset | null => {
+      if (!preset.overlay || !preset.overlay.enabled) {
+        return null;
+      }
+
+      const elementIndex = preset.overlay.elements.findIndex((el) => el.id === elementId);
+      if (elementIndex === -1) {
+        return null;
+      }
+
+      const element = preset.overlay.elements[elementIndex];
+      if (element.elementType !== 'text') {
+        return null;
+      }
+
+      const textElement = element as TextElementConfigComplete;
+
+      // Calculate new transform (immutable)
+      const newTransform = {
+        x: x,
+        y: y,
+        rotateDeg: textElement.transform.rotateDeg,
+      };
+
+      // Normalize transform (clamps to valid ranges)
+      const normalizedTransform = normalizeBaseTransform(newTransform);
+
+      // Create new element (immutable)
+      const updatedElement: TextElementConfigComplete = {
+        ...textElement,
+        transform: normalizedTransform,
+      };
+
+      // Create new elements array (immutable)
+      const updatedElements: OverlayElement[] = [
+        ...preset.overlay.elements.slice(0, elementIndex),
+        updatedElement,
+        ...preset.overlay.elements.slice(elementIndex + 1),
+      ];
+
+      // Create new overlay (immutable)
+      const updatedOverlay: OverlayConfig = {
+        ...preset.overlay,
+        elements: updatedElements,
+      };
+
+      // Create new preset (immutable)
+      return {
+        ...preset,
+        overlay: updatedOverlay,
+      };
+    },
+    []
+  );
+
   // Overlay element keyboard arrow handler
   const handleOverlayElementKeyArrow = useCallback(
     (elementId: string, direction: 'up' | 'down' | 'left' | 'right') => {
@@ -756,6 +1125,13 @@ export function ConfigApp(): JSX.Element {
         setSelectedOverlayElementId(null);
       }
 
+      // If deleted element was collapsed, remove from collapse state
+      setCollapsedElementIds((prev) => {
+        const next = new Set(prev);
+        next.delete(elementToDelete.id);
+        return next;
+      });
+
       // Update in-memory preset immediately
       setPreset(updatedPreset);
 
@@ -773,6 +1149,204 @@ export function ConfigApp(): JSX.Element {
     },
     [preset, selectedOverlayElementId, throttledPublish]
   );
+
+  // FAZ-6B: Element list collapse handler (UI-only, not persisted)
+  const handleToggleElementCollapse = useCallback((elementId: string) => {
+    setCollapsedElementIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(elementId)) {
+        next.delete(elementId);
+      } else {
+        next.add(elementId);
+      }
+      return next;
+    });
+  }, []);
+
+  // FAZ-6B: Text element input handlers
+  const handleTextElementContentChange = useCallback(
+    (elementId: string, content: string) => {
+      if (!preset) return;
+
+      const updatedPreset = updateTextElementContentHelper(preset, elementId, content);
+      if (!updatedPreset) return;
+
+      // Update in-memory preset immediately
+      setPreset(updatedPreset);
+
+      // Update preview render model immediately (async resolution for local media)
+      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
+        const renderModel = presetToRenderModel(resolvedPreset);
+        setResolvedRenderModel(renderModel);
+      });
+
+      // Throttled publish to Kraken
+      throttledPublish(updatedPreset);
+
+      // Schedule persist (debounced)
+      schedulePersist();
+    },
+    [preset, throttledPublish, schedulePersist]
+  );
+
+  const handleTextElementFontFamilyChange = useCallback(
+    (elementId: string, fontFamily: string) => {
+      if (!preset) return;
+
+      const updatedPreset = updateTextElementFontFamilyHelper(preset, elementId, fontFamily);
+      if (!updatedPreset) return;
+
+      // Update in-memory preset immediately
+      setPreset(updatedPreset);
+
+      // Update preview render model immediately (async resolution for local media)
+      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
+        const renderModel = presetToRenderModel(resolvedPreset);
+        setResolvedRenderModel(renderModel);
+      });
+
+      // Throttled publish to Kraken
+      throttledPublish(updatedPreset);
+
+      // Schedule persist (debounced)
+      schedulePersist();
+    },
+    [preset, throttledPublish, schedulePersist]
+  );
+
+  const handleTextElementRotateChange = useCallback(
+    (elementId: string, rotateDeg: number) => {
+      if (!preset) return;
+
+      const updatedPreset = updateTextElementRotateHelper(preset, elementId, rotateDeg);
+      if (!updatedPreset) return;
+
+      // Update in-memory preset immediately
+      setPreset(updatedPreset);
+
+      // Update preview render model immediately (async resolution for local media)
+      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
+        const renderModel = presetToRenderModel(resolvedPreset);
+        setResolvedRenderModel(resolvedPreset);
+      });
+
+      // Throttled publish to Kraken
+      throttledPublish(updatedPreset);
+
+      // Schedule persist (debounced)
+      schedulePersist();
+    },
+    [preset, throttledPublish, schedulePersist]
+  );
+
+  const handleTextElementOffsetChange = useCallback(
+    (elementId: string, x: number, y: number) => {
+      if (!preset) return;
+
+      const updatedPreset = updateTextElementOffsetHelper(preset, elementId, x, y);
+      if (!updatedPreset) return;
+
+      // Update in-memory preset immediately
+      setPreset(updatedPreset);
+
+      // Update preview render model immediately (async resolution for local media)
+      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
+        const renderModel = presetToRenderModel(resolvedPreset);
+        setResolvedRenderModel(renderModel);
+      });
+
+      // Throttled publish to Kraken
+      throttledPublish(updatedPreset);
+
+      // Schedule persist (debounced)
+      schedulePersist();
+    },
+    [preset, throttledPublish, schedulePersist]
+  );
+
+  // FAZ-6B: Text element fontSize absolute value handler (minimal - uses existing delta helper)
+  const handleTextElementFontSizeChange = useCallback(
+    (elementId: string, fontSize: number) => {
+      if (!preset || !preset.overlay || !preset.overlay.enabled) return;
+
+      // Find current fontSize
+      const element = preset.overlay.elements.find((el) => el.id === elementId);
+      if (!element || element.elementType !== 'text') return;
+
+      const textElement = element as TextElementConfigComplete;
+      const currentFontSize = textElement.config.fontSize;
+
+      // Calculate delta (absolute → delta)
+      const fontSizeDelta = fontSize - currentFontSize;
+
+      // Use existing delta-based helper (publish/persist/render-model chain already here)
+      applyOverlayElementFontSizeDelta(elementId, fontSizeDelta);
+    },
+    [preset, applyOverlayElementFontSizeDelta]
+  );
+
+  // FAZ-6B: Text element color change handler
+  const handleTextElementColorChange = useCallback(
+    (elementId: string, color: string) => {
+      if (!preset) return;
+
+      const updatedPreset = updateTextElementColorHelper(preset, elementId, color);
+      if (!updatedPreset) return;
+
+      // Update in-memory preset immediately
+      setPreset(updatedPreset);
+
+      // Update preview render model immediately (async resolution for local media)
+      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
+        const renderModel = presetToRenderModel(resolvedPreset);
+        setResolvedRenderModel(renderModel);
+      });
+
+      // Throttled publish to Kraken
+      throttledPublish(updatedPreset);
+
+      // Schedule persist (debounced)
+      schedulePersist();
+    },
+    [preset, throttledPublish, schedulePersist]
+  );
+
+  // FAZ-6B: Text element outline change handler
+  const handleTextElementOutlineChange = useCallback(
+    (elementId: string, outlineWidth: number, outlineColor?: string) => {
+      if (!preset) return;
+
+      const updatedPreset = updateTextElementOutlineHelper(preset, elementId, outlineWidth, outlineColor);
+      if (!updatedPreset) return;
+
+      // Update in-memory preset immediately
+      setPreset(updatedPreset);
+
+      // Update preview render model immediately (async resolution for local media)
+      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
+        const renderModel = presetToRenderModel(resolvedPreset);
+        setResolvedRenderModel(renderModel);
+      });
+
+      // Throttled publish to Kraken
+      throttledPublish(updatedPreset);
+
+      // Schedule persist (debounced)
+      schedulePersist();
+    },
+    [preset, throttledPublish, schedulePersist]
+  );
+
+  // FAZ-6B: Text color drawer handlers
+  const handleOpenTextColorDrawer = useCallback((elementId: string) => {
+    setTextColorDrawerElementId(elementId);
+    setTextColorDrawerOpen(true);
+  }, []);
+
+  const handleCloseTextColorDrawer = useCallback(() => {
+    setTextColorDrawerOpen(false);
+    setTextColorDrawerElementId(null);
+  }, []);
 
   // Handle intrinsic size available (autoscale computation + intrinsic persistence)
   const handleIntrinsicSizeAvailable = useCallback(
@@ -994,6 +1568,19 @@ export function ConfigApp(): JSX.Element {
             backgroundOpacity={backgroundOpacity}
             onShowBackgroundChange={setShowBackground}
             onBackgroundOpacityChange={setBackgroundOpacity}
+            collapsedElementIds={collapsedElementIds}
+            onToggleElementCollapse={handleToggleElementCollapse}
+            onTextElementContentChange={handleTextElementContentChange}
+            onTextElementFontSizeChange={handleTextElementFontSizeChange}
+            onTextElementFontFamilyChange={handleTextElementFontFamilyChange}
+            onTextElementRotateChange={handleTextElementRotateChange}
+            onTextElementOffsetChange={handleTextElementOffsetChange}
+            textColorDrawerOpen={textColorDrawerOpen}
+            textColorDrawerElementId={textColorDrawerElementId}
+            onOpenTextColorDrawer={handleOpenTextColorDrawer}
+            onCloseTextColorDrawer={handleCloseTextColorDrawer}
+            onTextElementColorChange={handleTextElementColorChange}
+            onTextElementOutlineChange={handleTextElementOutlineChange}
           />
         </div>
       </div>
