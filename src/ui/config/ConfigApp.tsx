@@ -1,10 +1,6 @@
 // Configuration Browser application entry point
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { loadActivePresetState, savePreset } from '../../storage/local';
-import { sessionBus } from '../../sync/sessionBus';
-import { presetToRenderModel } from '../../render/engine';
-import type { Preset } from '../../core/preset/preset.types';
+import { useState, useCallback, useRef } from 'react';
 import type { BackgroundMediaOverlayConfig } from '../../core/background/media-overlay/media-overlay.types';
 import { useTranslation } from '../../i18n';
 import { useModal } from '../shared/modal/modal.context';
@@ -14,349 +10,106 @@ import { BackgroundSettingsPanel } from './panels/BackgroundSettingsPanel';
 import { OverlaySettingsPanel } from './panels/OverlaySettingsPanel';
 import { PresetManagerPanel } from './panels/PresetManagerPanel';
 import { ConfigHeader } from './layout/ConfigHeader';
-import { localMediaResolver } from '../../storage/localMediaResolver';
-import { createDefaultPreset } from '../../core/preset/preset.defaults';
 import { getViewportDimensions } from '../../render/viewport';
-import { normalizeMediaOverlayTransform } from '../../core/background/media-overlay/media-overlay.defaults';
 import { updateOverlayElementTransform, updateOverlayElementFontSize } from './overlay/overlayUpdates';
-import { toggleOverlayEnabled, addTextOverlayElement, addShapeOverlayElement } from './overlay/overlayHelpers';
-import { moveOverlayElementUp, moveOverlayElementDown, deleteOverlayElement } from './overlay/overlayListHelpers';
 import type { OverlayElement } from '../../core/overlay/overlay.types';
 import type { TextElementConfigComplete } from '../../core/elements/text/text.types';
-import type { OverlayConfig } from '../../core/overlay/overlay.types';
 import { normalizeTextElementConfig } from '../../core/elements/text/text.defaults';
 import { normalizeBaseTransform } from '../../core/overlay/overlay.defaults';
+
+// Hooks
+import { usePreset } from './hooks/usePreset';
+import { useOverlayManager } from './hooks/useOverlayManager';
+import { useMediaOverlay } from './hooks/useMediaOverlay';
+
 import '../../render/styles/background.css';
 import '../../render/styles/overlay.css';
 import '../../styles/config.css';
 import '../../styles/root.css';
 
-/**
- * Creates a render input from a preset by resolving local media to objectURLs.
- * This is an ephemeral object for render only - NOT persisted.
- * Does NOT mutate the original preset.
- */
-async function createResolvedRenderInput(preset: Preset): Promise<Preset> {
-  const overlay = preset.background.mediaOverlay;
-
-  // If no overlay or not local media, return as-is
-  if (!overlay || overlay.source !== 'local' || !overlay.media.mediaId) {
-    return preset;
-  }
-
-  // Resolve mediaId to objectURL
-  const objectURL = await localMediaResolver.resolveMediaId(overlay.media.mediaId);
-
-  // If resolution failed, return preset without overlay (for render)
-  if (!objectURL) {
-    return {
-      ...preset,
-      background: {
-        ...preset.background,
-        mediaOverlay: undefined,
-      },
-    };
-  }
-
-  // Create shallow clone with mediaId replaced by objectURL
-  return {
-    ...preset,
-    background: {
-      ...preset.background,
-      mediaOverlay: {
-        ...overlay,
-        media: {
-          ...overlay.media,
-          mediaId: objectURL, // Replace stable ID with objectURL for render
-        },
-      },
-    },
-  };
-}
-
 export function ConfigApp(): JSX.Element {
   const { t } = useTranslation();
-  const [preset, setPreset] = useState<Preset | null>(null);
-  const [resolvedRenderModel, setResolvedRenderModel] = useState(
-    presetToRenderModel(createDefaultPreset())
-  );
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [isPresetManagerOpen, setIsPresetManagerOpen] = useState(false);
   const { openModal } = useModal();
-  const autoscaleComputedRef = useRef<Set<string>>(new Set());
+  
+  // Custom Hooks
+  const { preset, setPreset, resolvedRenderModel, isInitialized } = usePreset();
+  const {
+    selectedOverlayElementId,
+    setSelectedOverlayElementId,
+    collapsedElementIds,
+    handleToggleElementCollapse,
+    textColorDrawerOpen,
+    textColorDrawerElementId,
+    setTextColorDrawerElementId,
+    handleToggleOverlayEnabled,
+    handleAddTextOverlay,
+    handleAddShapeOverlay,
+    handleElementDelete,
+    handleElementMoveUp,
+    handleElementMoveDown
+  } = useOverlayManager(preset, setPreset);
+
+  const {
+    handleIntrinsicSizeAvailable,
+    applyTransformDelta,
+    handleRemoveMediaOverlay
+  } = useMediaOverlay(preset, setPreset);
+
+  // UI-only states
+  const [isPresetManagerOpen, setIsPresetManagerOpen] = useState(false);
   const [showOverlayGuides, setShowOverlayGuides] = useState(false);
-  
-  // FAZ-5.B2: Overlay element selection state (UI-only, not persisted)
-  const [selectedOverlayElementId, setSelectedOverlayElementId] = useState<string | null>(null);
-  
-  // FAZ-5.E1.4: Overlay Preview background controls state (UI-only, not persisted)
   const [showBackground, setShowBackground] = useState(true);
   const [backgroundOpacity, setBackgroundOpacity] = useState(1.0);
   
-  // FAZ-6B: Element list collapse state (UI-only, not persisted)
-  const [collapsedElementIds, setCollapsedElementIds] = useState<Set<string>>(new Set());
-  
-  // FAZ-6B: Text color drawer state (UI-only, not persisted)
-  const [textColorDrawerOpen, setTextColorDrawerOpen] = useState(false);
-  const [textColorDrawerElementId, setTextColorDrawerElementId] = useState<string | null>(null);
-  
-  // Throttled publish mechanism
-  const throttleTimerRef = useRef<number | null>(null);
-  const pendingPublishRef = useRef<boolean>(false);
-  const lastPresetRef = useRef<Preset | null>(null);
-  
-  // Persist debounce timers
+  // Interaction tracking for persistence
   const persistDebounceTimerRef = useRef<number | null>(null);
-  const isInteractionActiveRef = useRef<boolean>(false);
 
-  useEffect(() => {
-    const initialize = async () => {
-      const state = loadActivePresetState();
-      const activePreset = state.presets[state.activePresetId];
-      
-      if (activePreset) {
-        setPreset(activePreset);
-        setIsInitialized(true);
-        
-        // Resolve local media before rendering
-        const resolvedPreset = await createResolvedRenderInput(activePreset);
-        const renderModel = presetToRenderModel(resolvedPreset);
-        setResolvedRenderModel(renderModel);
-        sessionBus.publishActivePreset(renderModel);
-      }
-    };
-
-    initialize();
-
-    // Cleanup: revoke all objectURLs on unmount
-    return () => {
-      localMediaResolver.revokeAll();
-    };
-  }, []);
-
-  // Update resolved render model when preset changes
-  useEffect(() => {
-    if (!preset) return;
-
-    const updateRenderModel = async () => {
-      const resolvedPreset = await createResolvedRenderInput(preset);
-      const renderModel = presetToRenderModel(resolvedPreset);
-      setResolvedRenderModel(renderModel);
-    };
-
-    updateRenderModel();
-  }, [preset]);
-
-  // Throttled publish function (~100ms)
-  const throttledPublish = useCallback(async (presetToPublish: Preset) => {
-    lastPresetRef.current = presetToPublish;
-    
-    if (throttleTimerRef.current === null) {
-      throttleTimerRef.current = window.setTimeout(async () => {
-        throttleTimerRef.current = null;
-        
-        if (pendingPublishRef.current && lastPresetRef.current) {
-          pendingPublishRef.current = false;
-          const resolvedPreset = await createResolvedRenderInput(lastPresetRef.current);
-          const renderModel = presetToRenderModel(resolvedPreset);
-          sessionBus.publishActivePreset(renderModel);
-        } else if (lastPresetRef.current) {
-          // Publish even if no pending flag (first call)
-          const resolvedPreset = await createResolvedRenderInput(lastPresetRef.current);
-          const renderModel = presetToRenderModel(resolvedPreset);
-          sessionBus.publishActivePreset(renderModel);
-        }
-      }, 100);
-    } else {
-      pendingPublishRef.current = true;
-    }
-  }, []);
-
-  // Cleanup throttle on unmount and preset change
-  useEffect(() => {
-    return () => {
-      if (throttleTimerRef.current !== null) {
-        clearTimeout(throttleTimerRef.current);
-        throttleTimerRef.current = null;
-      }
-      if (persistDebounceTimerRef.current !== null) {
-        clearTimeout(persistDebounceTimerRef.current);
-        persistDebounceTimerRef.current = null;
-      }
-      pendingPublishRef.current = false;
-      isInteractionActiveRef.current = false;
-    };
-  }, [preset?.id]);
-
-  // Cancel interaction on preset change
-  useEffect(() => {
+  const schedulePersist = useCallback(() => {
     if (persistDebounceTimerRef.current !== null) {
       clearTimeout(persistDebounceTimerRef.current);
-      persistDebounceTimerRef.current = null;
     }
-    isInteractionActiveRef.current = false;
-  }, [preset?.id]);
-
-  const handleColorChange = useCallback(async (color: string) => {
-    if (!preset) return;
-
-    const updatedPreset: Preset = {
-      ...preset,
-      background: {
-        ...preset.background,
-        base: {
-          ...preset.background.base,
-          sourceType: 'color',
-          color,
-        },
-      },
-    };
-
-    setPreset(updatedPreset);
-    savePreset(updatedPreset);
-
-      // Resolve local media before rendering
-      const resolvedPreset = await createResolvedRenderInput(updatedPreset);
-      const renderModel = presetToRenderModel(resolvedPreset);
-      setResolvedRenderModel(renderModel);
-      sessionBus.publishActivePreset(renderModel);
-  }, [preset]);
-
-  const handlePresetApplied = useCallback(async (appliedPreset: Preset) => {
-    setPreset(appliedPreset);
-    
-    // Resolve local media before rendering
-    const resolvedPreset = await createResolvedRenderInput(appliedPreset);
-    const renderModel = presetToRenderModel(resolvedPreset);
-    setResolvedRenderModel(renderModel);
-    sessionBus.publishActivePreset(renderModel);
+    persistDebounceTimerRef.current = window.setTimeout(() => {
+      persistDebounceTimerRef.current = null;
+    }, 400);
   }, []);
 
-  const handleBackgroundMediaOverlayApply = useCallback(
-    async (overlay: BackgroundMediaOverlayConfig) => {
-      if (!preset) {
-        return;
-      }
-
-      // For YouTube, ensure default intrinsic is set and compute autoscale if needed
-      if (overlay.source === 'youtube' && overlay.media.intrinsic) {
-        const mediaKey = `youtube:${overlay.media.videoId}`;
-        const isNewYouTube = !autoscaleComputedRef.current.has(mediaKey);
-        const isDefaultTransform =
-          overlay.transform.scale === 1 &&
-          overlay.transform.autoScale === 1 &&
-          overlay.transform.offsetX === 0 &&
-          overlay.transform.offsetY === 0 &&
-          overlay.transform.rotateDeg === 0;
-
-        if (isNewYouTube && isDefaultTransform) {
-          // Compute autoscale for YouTube using default intrinsic
-          const viewport = getViewportDimensions();
-          const viewportShortEdge = Math.min(viewport.width, viewport.height);
-          const mediaShortEdge = Math.min(
-            overlay.media.intrinsic.width,
-            overlay.media.intrinsic.height
-          );
-          const autoScaleShortEdge = viewportShortEdge / mediaShortEdge;
-
-          overlay = {
-            ...overlay,
-            transform: {
-              ...overlay.transform,
-              autoScale: autoScaleShortEdge,
-              scale: 1,
-            },
-          };
-
-          autoscaleComputedRef.current.add(mediaKey);
-        }
-      }
-
-      const updatedPreset: Preset = {
-        ...preset,
-        background: {
-          ...preset.background,
-          mediaOverlay: overlay,
-        },
-      };
-
-      setPreset(updatedPreset);
-      savePreset(updatedPreset);
-
-      // Resolve local media before rendering
-      const resolvedPreset = await createResolvedRenderInput(updatedPreset);
-      const renderModel = presetToRenderModel(resolvedPreset);
-      setResolvedRenderModel(renderModel);
-      sessionBus.publishActivePreset(renderModel);
-    },
-    [preset]
-  );
-
-  const handleBackgroundMediaOverlayRemove = useCallback(async () => {
-    if (!preset || !preset.background.mediaOverlay) {
-      return;
-    }
-
-    // Revoke objectURL if it was a local media
-    if (preset.background.mediaOverlay.source === 'local') {
-      const mediaId = preset.background.mediaOverlay.media.mediaId;
-      if (mediaId) {
-        localMediaResolver.revokeMediaId(mediaId);
-      }
-    }
-
-    const updatedPreset: Preset = {
+  const handleColorChange = useCallback((color: string) => {
+    if (!preset) return;
+    setPreset({
       ...preset,
       background: {
         ...preset.background,
-        mediaOverlay: undefined,
+        base: { ...preset.background.base, sourceType: 'color', color },
       },
-    };
+    });
+  }, [preset, setPreset]);
 
-    setPreset(updatedPreset);
-    savePreset(updatedPreset);
-
-    const renderModel = presetToRenderModel(updatedPreset);
-    setResolvedRenderModel(renderModel);
-    sessionBus.publishActivePreset(renderModel);
-  }, [preset]);
+  const handleBackgroundMediaOverlayApply = useCallback((overlay: BackgroundMediaOverlayConfig) => {
+    if (!preset) return;
+    setPreset({
+      ...preset,
+      background: { ...preset.background, mediaOverlay: overlay },
+    });
+  }, [preset, setPreset]);
 
   const handleOpenBackgroundMediaModal = useCallback(() => {
-    if (!preset) {
-      return;
-    }
-
+    if (!preset) return;
     const existingOverlay = preset.background.mediaOverlay;
-
-    let existingLocalFileName: string | undefined;
-    let existingLocalFileSize: number | undefined;
-    let existingUrl: string | undefined;
-
-    if (existingOverlay?.source === 'local') {
-      existingLocalFileName = existingOverlay.media.fileName;
-      existingLocalFileSize = existingOverlay.media.fileSize;
-    } else if (existingOverlay?.source === 'url') {
-      existingUrl = existingOverlay.media.url;
-    }
-
     openModal({
       type: 'BACKGROUND_MEDIA',
       props: {
         titleKey: 'backgroundMediaLabel',
         hasExistingOverlay: Boolean(existingOverlay),
-        existingLocalFileName,
-        existingLocalFileSize,
-        existingUrl,
+        existingLocalFileName: existingOverlay?.source === 'local' ? existingOverlay.media.fileName : undefined,
+        existingLocalFileSize: existingOverlay?.source === 'local' ? existingOverlay.media.fileSize : undefined,
+        existingUrl: existingOverlay?.source === 'url' ? existingOverlay.media.url : undefined,
         onApply: handleBackgroundMediaOverlayApply,
       },
     });
   }, [openModal, preset, handleBackgroundMediaOverlayApply]);
 
   const handleConfirmRemoveBackgroundMedia = useCallback(() => {
-    if (!preset || !preset.background.mediaOverlay) {
-      return;
-    }
-
+    if (!preset?.background.mediaOverlay) return;
     openModal({
       type: 'BACKGROUND_MEDIA_REMOVE_CONFIRM',
       props: {
@@ -364,1123 +117,44 @@ export function ConfigApp(): JSX.Element {
         bodyKey: 'backgroundMediaRemove',
         confirmLabelKey: 'backgroundMediaRemove',
         cancelLabelKey: 'backgroundMediaCancel',
-        onConfirm: handleBackgroundMediaOverlayRemove,
+        onConfirm: handleRemoveMediaOverlay,
       },
     });
-  }, [openModal, preset, handleBackgroundMediaOverlayRemove]);
+  }, [openModal, preset, handleRemoveMediaOverlay]);
 
-  // Handle transform change (from input fields - immediate persist)
-  const handleTransformChange = useCallback(
-    async (transform: BackgroundMediaOverlayConfig['transform']) => {
-      if (!preset || !preset.background.mediaOverlay) {
-        return;
-      }
-
-      const updatedPreset: Preset = {
-        ...preset,
-        background: {
-          ...preset.background,
-          mediaOverlay: {
-            ...preset.background.mediaOverlay,
-            transform,
-          },
-        },
-      };
-
-      setPreset(updatedPreset);
-      savePreset(updatedPreset);
-
-      // Update render model
-      const resolvedPreset = await createResolvedRenderInput(updatedPreset);
-      const renderModel = presetToRenderModel(resolvedPreset);
-      setResolvedRenderModel(renderModel);
-      sessionBus.publishActivePreset(renderModel);
-    },
-    [preset]
-  );
-
-  // Apply transform delta (for interactive manipulation)
-  const applyTransformDelta = useCallback(
-    (deltaX: number, deltaY: number, deltaScale?: number) => {
-      if (!preset || !preset.background.mediaOverlay) {
-        return;
-      }
-
-      const viewport = getViewportDimensions();
-      const currentTransform = preset.background.mediaOverlay.transform;
-      
-      // Convert pixel deltas to normalized offset deltas
-      // offsetX/Y are in [-2, 2] range, representing viewport-relative offsets
-      const offsetDeltaX = deltaX / (viewport.width / 2);
-      const offsetDeltaY = deltaY / (viewport.height / 2);
-      
-      let newTransform = { ...currentTransform };
-      
-      if (deltaScale !== undefined) {
-        // Scale delta: multiply current scale
-        newTransform.scale = Math.max(0.01, currentTransform.scale * (1 + deltaScale));
-      } else {
-        // Offset delta: add to current offsets
-        newTransform.offsetX = currentTransform.offsetX + offsetDeltaX;
-        newTransform.offsetY = currentTransform.offsetY + offsetDeltaY;
-      }
-      
-      // Normalize transform
-      newTransform = normalizeMediaOverlayTransform(newTransform);
-      
-      const updatedPreset: Preset = {
-        ...preset,
-        background: {
-          ...preset.background,
-          mediaOverlay: {
-            ...preset.background.mediaOverlay,
-            transform: newTransform,
-          },
-        },
-      };
-
-      // Update in-memory preset immediately
-      setPreset(updatedPreset);
-      
-      // Update preview render model immediately (async resolution for local media)
-      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
-        const renderModel = presetToRenderModel(resolvedPreset);
-        setResolvedRenderModel(renderModel);
-      });
-      
-      // Throttled publish to Kraken
-      throttledPublish(updatedPreset);
-    },
-    [preset, throttledPublish]
-  );
-
-  // Persist with debounce (for wheel/keyboard)
-  const schedulePersist = useCallback(() => {
-    if (persistDebounceTimerRef.current !== null) {
-      clearTimeout(persistDebounceTimerRef.current);
-    }
-    
-    persistDebounceTimerRef.current = window.setTimeout(() => {
-      if (preset) {
-        savePreset(preset);
-        persistDebounceTimerRef.current = null;
-        isInteractionActiveRef.current = false;
-      }
-    }, 400);
-    
-    isInteractionActiveRef.current = true;
-  }, [preset]);
-
-  // Immediate persist (for drag end)
-  const persistImmediate = useCallback(() => {
-    if (persistDebounceTimerRef.current !== null) {
-      clearTimeout(persistDebounceTimerRef.current);
-      persistDebounceTimerRef.current = null;
-    }
-    
-    if (preset) {
-      savePreset(preset);
-      isInteractionActiveRef.current = false;
-    }
-  }, [preset]);
-
-  // Preview interaction handlers
-  const handleTransformDelta = useCallback(
-    (deltaX: number, deltaY: number) => {
-      applyTransformDelta(deltaX, deltaY);
-    },
-    [applyTransformDelta]
-  );
-
-  const handleScaleDelta = useCallback(
-    (delta: number) => {
-      applyTransformDelta(0, 0, delta);
-      schedulePersist();
-    },
-    [applyTransformDelta, schedulePersist]
-  );
-
-  const handleKeyArrow = useCallback(
-    (direction: 'up' | 'down' | 'left' | 'right', shift: boolean) => {
-      if (!preset || !preset.background.mediaOverlay) return;
-      
-      const viewport = getViewportDimensions();
-      const step = shift ? 0.1 : 0.05; // Larger step with Shift
-      
-      let deltaX = 0;
-      let deltaY = 0;
-      
-      if (direction === 'left') deltaX = -step * (viewport.width / 2);
-      else if (direction === 'right') deltaX = step * (viewport.width / 2);
-      else if (direction === 'up') deltaY = -step * (viewport.height / 2);
-      else if (direction === 'down') deltaY = step * (viewport.height / 2);
-      
-      applyTransformDelta(deltaX, deltaY);
-      schedulePersist();
-    },
-    [preset, applyTransformDelta, schedulePersist]
-  );
-
-  const handleDragEnd = useCallback(() => {
-    persistImmediate();
-  }, [persistImmediate]);
-
-  // FAZ-5.B2: Overlay element interaction handlers
-  // Apply overlay element transform delta (for drag/keyboard)
-  const applyOverlayElementTransformDelta = useCallback(
-    (elementId: string, deltaX: number, deltaY: number) => {
-      if (!preset || !preset.overlay || !preset.overlay.enabled) {
-        return;
-      }
-
-      const viewport = getViewportDimensions();
-      
-      // Convert pixel deltas to normalized deltas
-      // x/y range: -3..3, conversion: delta_norm = delta_px / (viewport / 2)
-      const normalizedDeltaX = deltaX / (viewport.width / 2);
-      const normalizedDeltaY = deltaY / (viewport.height / 2);
-
-      const updatedPreset = updateOverlayElementTransform(
-        preset,
-        elementId,
-        normalizedDeltaX,
-        normalizedDeltaY
-      );
-
-      if (!updatedPreset) {
-        return;
-      }
-
-      // Update in-memory preset immediately
-      setPreset(updatedPreset);
-
-      // Update preview render model immediately (async resolution for local media)
-      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
-        const renderModel = presetToRenderModel(resolvedPreset);
-        setResolvedRenderModel(renderModel);
-      });
-
-      // Throttled publish to Kraken
-      throttledPublish(updatedPreset);
-    },
-    [preset, throttledPublish]
-  );
-
-  // Apply overlay element fontSize delta (for resize/wheel)
-  const applyOverlayElementFontSizeDelta = useCallback(
-    (elementId: string, fontSizeDelta: number) => {
-      if (!preset || !preset.overlay || !preset.overlay.enabled) {
-        return;
-      }
-
-      const updatedPreset = updateOverlayElementFontSize(preset, elementId, fontSizeDelta);
-
-      if (!updatedPreset) {
-        return;
-      }
-
-      // Update in-memory preset immediately
-      setPreset(updatedPreset);
-
-      // Update preview render model immediately (async resolution for local media)
-      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
-        const renderModel = presetToRenderModel(resolvedPreset);
-        setResolvedRenderModel(renderModel);
-      });
-
-      // Throttled publish to Kraken
-      throttledPublish(updatedPreset);
-    },
-    [preset, throttledPublish]
-  );
-
-  // FAZ-6B: Text element update helper functions (immutable pattern, not exported)
-  // These helpers follow the same pattern as overlayUpdates.ts but are kept in ConfigApp.tsx
-  // to avoid export name conflicts and maintain UI-specific logic (e.g., outlineColor default on first open)
-
-  /**
-   * Helper: Update text element content.
-   * Immutable update pattern.
-   */
-  const updateTextElementContentHelper = useCallback(
-    (preset: Preset, elementId: string, content: string): Preset | null => {
-      if (!preset.overlay || !preset.overlay.enabled) {
-        return null;
-      }
-
-      const elementIndex = preset.overlay.elements.findIndex((el) => el.id === elementId);
-      if (elementIndex === -1) {
-        return null;
-      }
-
-      const element = preset.overlay.elements[elementIndex];
-      if (element.elementType !== 'text') {
-        return null;
-      }
-
-      const textElement = element as TextElementConfigComplete;
-
-      // Normalize config with new content
-      const normalizedConfig = normalizeTextElementConfig({
-        ...textElement.config,
-        content,
-      });
-
-      // Create new element (immutable)
-      const updatedElement: TextElementConfigComplete = {
-        ...textElement,
-        config: normalizedConfig,
-      };
-
-      // Create new elements array (immutable)
-      const updatedElements: OverlayElement[] = [
-        ...preset.overlay.elements.slice(0, elementIndex),
-        updatedElement,
-        ...preset.overlay.elements.slice(elementIndex + 1),
-      ];
-
-      // Create new overlay (immutable)
-      const updatedOverlay: OverlayConfig = {
-        ...preset.overlay,
-        elements: updatedElements,
-      };
-
-      // Create new preset (immutable)
-      return {
-        ...preset,
-        overlay: updatedOverlay,
-      };
-    },
-    []
-  );
-
-  /**
-   * Helper: Update text element color.
-   * Immutable update pattern.
-   */
-  const updateTextElementColorHelper = useCallback(
-    (preset: Preset, elementId: string, color: string): Preset | null => {
-      if (!preset.overlay || !preset.overlay.enabled) {
-        return null;
-      }
-
-      const elementIndex = preset.overlay.elements.findIndex((el) => el.id === elementId);
-      if (elementIndex === -1) {
-        return null;
-      }
-
-      const element = preset.overlay.elements[elementIndex];
-      if (element.elementType !== 'text') {
-        return null;
-      }
-
-      const textElement = element as TextElementConfigComplete;
-
-      // Normalize config with new color
-      const normalizedConfig = normalizeTextElementConfig({
-        ...textElement.config,
-        color,
-      });
-
-      // Create new element (immutable)
-      const updatedElement: TextElementConfigComplete = {
-        ...textElement,
-        config: normalizedConfig,
-      };
-
-      // Create new elements array (immutable)
-      const updatedElements: OverlayElement[] = [
-        ...preset.overlay.elements.slice(0, elementIndex),
-        updatedElement,
-        ...preset.overlay.elements.slice(elementIndex + 1),
-      ];
-
-      // Create new overlay (immutable)
-      const updatedOverlay: OverlayConfig = {
-        ...preset.overlay,
-        elements: updatedElements,
-      };
-
-      // Create new preset (immutable)
-      return {
-        ...preset,
-        overlay: updatedOverlay,
-      };
-    },
-    []
-  );
-
-  /**
-   * Helper: Update text element font family.
-   * Immutable update pattern.
-   */
-  const updateTextElementFontFamilyHelper = useCallback(
-    (preset: Preset, elementId: string, fontFamily: string): Preset | null => {
-      if (!preset.overlay || !preset.overlay.enabled) {
-        return null;
-      }
-
-      const elementIndex = preset.overlay.elements.findIndex((el) => el.id === elementId);
-      if (elementIndex === -1) {
-        return null;
-      }
-
-      const element = preset.overlay.elements[elementIndex];
-      if (element.elementType !== 'text') {
-        return null;
-      }
-
-      const textElement = element as TextElementConfigComplete;
-
-      // Normalize config with new fontFamily
-      const normalizedConfig = normalizeTextElementConfig({
-        ...textElement.config,
-        fontFamily,
-      });
-
-      // Create new element (immutable)
-      const updatedElement: TextElementConfigComplete = {
-        ...textElement,
-        config: normalizedConfig,
-      };
-
-      // Create new elements array (immutable)
-      const updatedElements: OverlayElement[] = [
-        ...preset.overlay.elements.slice(0, elementIndex),
-        updatedElement,
-        ...preset.overlay.elements.slice(elementIndex + 1),
-      ];
-
-      // Create new overlay (immutable)
-      const updatedOverlay: OverlayConfig = {
-        ...preset.overlay,
-        elements: updatedElements,
-      };
-
-      // Create new preset (immutable)
-      return {
-        ...preset,
-        overlay: updatedOverlay,
-      };
-    },
-    []
-  );
-
-  /**
-   * Helper: Update text element outline (width and color).
-   * Immutable update pattern.
-   * Special logic: If outlineWidth > 0 and outlineColor is undefined, set default #000000
-   * (This is the only place where outlineColor default is set, not at normalize level).
-   */
-  const updateTextElementOutlineHelper = useCallback(
-    (preset: Preset, elementId: string, outlineWidth: number, outlineColor?: string): Preset | null => {
-      if (!preset.overlay || !preset.overlay.enabled) {
-        return null;
-      }
-
-      const elementIndex = preset.overlay.elements.findIndex((el) => el.id === elementId);
-      if (elementIndex === -1) {
-        return null;
-      }
-
-      const element = preset.overlay.elements[elementIndex];
-      if (element.elementType !== 'text') {
-        return null;
-      }
-
-      const textElement = element as TextElementConfigComplete;
-
-      // Special logic: If outlineWidth > 0 and outlineColor is undefined, set default #000000
-      // This is the only place where outlineColor default is set (not at normalize level)
-      const finalOutlineColor = outlineWidth > 0 && outlineColor === undefined
-        ? '#000000'
-        : outlineColor;
-
-      // Normalize config with new outline
-      const normalizedConfig = normalizeTextElementConfig({
-        ...textElement.config,
-        outlineWidth,
-        outlineColor: finalOutlineColor,
-      });
-
-      // Create new element (immutable)
-      const updatedElement: TextElementConfigComplete = {
-        ...textElement,
-        config: normalizedConfig,
-      };
-
-      // Create new elements array (immutable)
-      const updatedElements: OverlayElement[] = [
-        ...preset.overlay.elements.slice(0, elementIndex),
-        updatedElement,
-        ...preset.overlay.elements.slice(elementIndex + 1),
-      ];
-
-      // Create new overlay (immutable)
-      const updatedOverlay: OverlayConfig = {
-        ...preset.overlay,
-        elements: updatedElements,
-      };
-
-      // Create new preset (immutable)
-      return {
-        ...preset,
-        overlay: updatedOverlay,
-      };
-    },
-    []
-  );
-
-  /**
-   * Helper: Update text element rotation.
-   * Immutable update pattern.
-   */
-  const updateTextElementRotateHelper = useCallback(
-    (preset: Preset, elementId: string, rotateDeg: number): Preset | null => {
-      if (!preset.overlay || !preset.overlay.enabled) {
-        return null;
-      }
-
-      const elementIndex = preset.overlay.elements.findIndex((el) => el.id === elementId);
-      if (elementIndex === -1) {
-        return null;
-      }
-
-      const element = preset.overlay.elements[elementIndex];
-      if (element.elementType !== 'text') {
-        return null;
-      }
-
-      const textElement = element as TextElementConfigComplete;
-
-      // Calculate new transform (immutable)
-      const newTransform = {
-        x: textElement.transform.x,
-        y: textElement.transform.y,
-        rotateDeg: rotateDeg,
-      };
-
-      // Normalize transform (clamps to valid ranges)
-      const normalizedTransform = normalizeBaseTransform(newTransform);
-
-      // Create new element (immutable)
-      const updatedElement: TextElementConfigComplete = {
-        ...textElement,
-        transform: normalizedTransform,
-      };
-
-      // Create new elements array (immutable)
-      const updatedElements: OverlayElement[] = [
-        ...preset.overlay.elements.slice(0, elementIndex),
-        updatedElement,
-        ...preset.overlay.elements.slice(elementIndex + 1),
-      ];
-
-      // Create new overlay (immutable)
-      const updatedOverlay: OverlayConfig = {
-        ...preset.overlay,
-        elements: updatedElements,
-      };
-
-      // Create new preset (immutable)
-      return {
-        ...preset,
-        overlay: updatedOverlay,
-      };
-    },
-    []
-  );
-
-  /**
-   * Helper: Update text element offset (x, y).
-   * Immutable update pattern.
-   */
-  const updateTextElementOffsetHelper = useCallback(
-    (preset: Preset, elementId: string, x: number, y: number): Preset | null => {
-      if (!preset.overlay || !preset.overlay.enabled) {
-        return null;
-      }
-
-      const elementIndex = preset.overlay.elements.findIndex((el) => el.id === elementId);
-      if (elementIndex === -1) {
-        return null;
-      }
-
-      const element = preset.overlay.elements[elementIndex];
-      if (element.elementType !== 'text') {
-        return null;
-      }
-
-      const textElement = element as TextElementConfigComplete;
-
-      // Calculate new transform (immutable)
-      const newTransform = {
-        x: x,
-        y: y,
-        rotateDeg: textElement.transform.rotateDeg,
-      };
-
-      // Normalize transform (clamps to valid ranges)
-      const normalizedTransform = normalizeBaseTransform(newTransform);
-
-      // Create new element (immutable)
-      const updatedElement: TextElementConfigComplete = {
-        ...textElement,
-        transform: normalizedTransform,
-      };
-
-      // Create new elements array (immutable)
-      const updatedElements: OverlayElement[] = [
-        ...preset.overlay.elements.slice(0, elementIndex),
-        updatedElement,
-        ...preset.overlay.elements.slice(elementIndex + 1),
-      ];
-
-      // Create new overlay (immutable)
-      const updatedOverlay: OverlayConfig = {
-        ...preset.overlay,
-        elements: updatedElements,
-      };
-
-      // Create new preset (immutable)
-      return {
-        ...preset,
-        overlay: updatedOverlay,
-      };
-    },
-    []
-  );
-
-  // Overlay element keyboard arrow handler
-  const handleOverlayElementKeyArrow = useCallback(
-    (elementId: string, direction: 'up' | 'down' | 'left' | 'right') => {
-      if (!preset || !preset.overlay || !preset.overlay.enabled) return;
-
-      const viewport = getViewportDimensions();
-      const step = 1; // 1-2 px per keypress (small step)
-      
-      let deltaX = 0;
-      let deltaY = 0;
-      
-      if (direction === 'left') deltaX = -step;
-      else if (direction === 'right') deltaX = step;
-      else if (direction === 'up') deltaY = -step;
-      else if (direction === 'down') deltaY = step;
-      
-      applyOverlayElementTransformDelta(elementId, deltaX, deltaY);
-      schedulePersist();
-    },
-    [preset, applyOverlayElementTransformDelta, schedulePersist]
-  );
-
-  // FAZ-5.C1: Overlay UI handlers
-  const handleToggleOverlayEnabled = useCallback(() => {
+  const applyOverlayElementTransformDelta = useCallback((elementId: string, deltaX: number, deltaY: number) => {
     if (!preset) return;
+    const viewport = getViewportDimensions();
+    const updated = updateOverlayElementTransform(preset, elementId, deltaX / (viewport.width / 2), deltaY / (viewport.height / 2));
+    if (updated) setPreset(updated);
+  }, [preset, setPreset]);
 
-    const updatedPreset = toggleOverlayEnabled(preset);
-
-    // Update in-memory preset immediately
-    setPreset(updatedPreset);
-
-    // Update preview render model immediately (async resolution for local media)
-    createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
-      const renderModel = presetToRenderModel(resolvedPreset);
-      setResolvedRenderModel(renderModel);
-    });
-
-    // Throttled publish to Kraken
-    throttledPublish(updatedPreset);
-
-    // Persist immediately (toggle is a discrete action)
-    savePreset(updatedPreset);
-  }, [preset, throttledPublish]);
-
-  const handleAddTextOverlay = useCallback(() => {
+  const applyOverlayElementFontSizeDelta = useCallback((elementId: string, fontSizeDelta: number) => {
     if (!preset) return;
+    const updated = updateOverlayElementFontSize(preset, elementId, fontSizeDelta);
+    if (updated) setPreset(updated);
+  }, [preset, setPreset]);
 
-    const updatedPreset = addTextOverlayElement(preset);
+  const updateTextElement = useCallback((elementId: string, updater: (config: any) => any) => {
+    if (!preset?.overlay?.enabled) return;
+    const index = preset.overlay.elements.findIndex(el => el.id === elementId);
+    if (index === -1) return;
+    const element = preset.overlay.elements[index] as TextElementConfigComplete;
 
-    if (!updatedPreset) {
-      // Limit reached - could show alert here in future
-      return;
-    }
+    const updatedElement = {
+      ...element,
+      config: normalizeTextElementConfig(updater(element.config))
+    };
 
-    // Update in-memory preset immediately
-    setPreset(updatedPreset);
+    const updatedElements = [...preset.overlay.elements];
+    updatedElements[index] = updatedElement;
 
-    // Update preview render model immediately (async resolution for local media)
-    createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
-      const renderModel = presetToRenderModel(resolvedPreset);
-      setResolvedRenderModel(renderModel);
+    setPreset({
+      ...preset,
+      overlay: { ...preset.overlay, elements: updatedElements as OverlayElement[] }
     });
-
-    // Throttled publish to Kraken
-    throttledPublish(updatedPreset);
-
-    // Persist immediately (add is a discrete action)
-    savePreset(updatedPreset);
-  }, [preset, throttledPublish]);
-
-  // FAZ-5.D1.A1: Add SHAPE overlay element handler
-  const handleAddShapeOverlay = useCallback(() => {
-    if (!preset) return;
-
-    const updatedPreset = addShapeOverlayElement(preset);
-
-    if (!updatedPreset) {
-      // Limit reached - could show alert here in future
-      return;
-    }
-
-    // Update in-memory preset immediately
-    setPreset(updatedPreset);
-
-    // Update preview render model immediately (async resolution for local media)
-    createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
-      const renderModel = presetToRenderModel(resolvedPreset);
-      setResolvedRenderModel(renderModel);
-    });
-
-    // Throttled publish to Kraken
-    throttledPublish(updatedPreset);
-
-    // Persist immediately (add is a discrete action)
-    savePreset(updatedPreset);
-  }, [preset, throttledPublish]);
-
-  // FAZ-5.C2: Overlay list UI handlers
-  const handleOverlayElementMoveUp = useCallback(
-    (elementIndex: number) => {
-      if (!preset) return;
-
-      const updatedPreset = moveOverlayElementUp(preset, elementIndex);
-
-      if (!updatedPreset) {
-        return;
-      }
-
-      // Update in-memory preset immediately
-      setPreset(updatedPreset);
-
-      // Update preview render model immediately (async resolution for local media)
-      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
-        const renderModel = presetToRenderModel(resolvedPreset);
-        setResolvedRenderModel(renderModel);
-      });
-
-      // Throttled publish to Kraken
-      throttledPublish(updatedPreset);
-
-      // Persist immediately (reorder is a discrete action)
-      savePreset(updatedPreset);
-    },
-    [preset, throttledPublish]
-  );
-
-  const handleOverlayElementMoveDown = useCallback(
-    (elementIndex: number) => {
-      if (!preset) return;
-
-      const updatedPreset = moveOverlayElementDown(preset, elementIndex);
-
-      if (!updatedPreset) {
-        return;
-      }
-
-      // Update in-memory preset immediately
-      setPreset(updatedPreset);
-
-      // Update preview render model immediately (async resolution for local media)
-      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
-        const renderModel = presetToRenderModel(resolvedPreset);
-        setResolvedRenderModel(renderModel);
-      });
-
-      // Throttled publish to Kraken
-      throttledPublish(updatedPreset);
-
-      // Persist immediately (reorder is a discrete action)
-      savePreset(updatedPreset);
-    },
-    [preset, throttledPublish]
-  );
-
-  const handleOverlayElementDelete = useCallback(
-    (elementIndex: number) => {
-      if (!preset) return;
-
-      const elementToDelete = preset.overlay?.elements[elementIndex];
-      if (!elementToDelete) {
-        return;
-      }
-
-      const updatedPreset = deleteOverlayElement(preset, elementIndex);
-
-      if (!updatedPreset) {
-        return;
-      }
-
-      // If deleted element was selected, clear selection
-      if (selectedOverlayElementId === elementToDelete.id) {
-        setSelectedOverlayElementId(null);
-      }
-
-      // If deleted element was collapsed, remove from collapse state
-      setCollapsedElementIds((prev) => {
-        const next = new Set(prev);
-        next.delete(elementToDelete.id);
-        return next;
-      });
-
-      // Update in-memory preset immediately
-      setPreset(updatedPreset);
-
-      // Update preview render model immediately (async resolution for local media)
-      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
-        const renderModel = presetToRenderModel(resolvedPreset);
-        setResolvedRenderModel(renderModel);
-      });
-
-      // Throttled publish to Kraken
-      throttledPublish(updatedPreset);
-
-      // Persist immediately (delete is a discrete action)
-      savePreset(updatedPreset);
-    },
-    [preset, selectedOverlayElementId, throttledPublish]
-  );
-
-  // FAZ-6B: Element list collapse handler (UI-only, not persisted)
-  const handleToggleElementCollapse = useCallback((elementId: string) => {
-    setCollapsedElementIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(elementId)) {
-        next.delete(elementId);
-      } else {
-        next.add(elementId);
-      }
-      return next;
-    });
-  }, []);
-
-  // FAZ-6B: Text element input handlers
-  const handleTextElementContentChange = useCallback(
-    (elementId: string, content: string) => {
-      if (!preset) return;
-
-      const updatedPreset = updateTextElementContentHelper(preset, elementId, content);
-      if (!updatedPreset) return;
-
-      // Update in-memory preset immediately
-      setPreset(updatedPreset);
-
-      // Update preview render model immediately (async resolution for local media)
-      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
-        const renderModel = presetToRenderModel(resolvedPreset);
-        setResolvedRenderModel(renderModel);
-      });
-
-      // Throttled publish to Kraken
-      throttledPublish(updatedPreset);
-
-      // Schedule persist (debounced)
-      schedulePersist();
-    },
-    [preset, throttledPublish, schedulePersist]
-  );
-
-  const handleTextElementFontFamilyChange = useCallback(
-    (elementId: string, fontFamily: string) => {
-      if (!preset) return;
-
-      const updatedPreset = updateTextElementFontFamilyHelper(preset, elementId, fontFamily);
-      if (!updatedPreset) return;
-
-      // Update in-memory preset immediately
-      setPreset(updatedPreset);
-
-      // Update preview render model immediately (async resolution for local media)
-      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
-        const renderModel = presetToRenderModel(resolvedPreset);
-        setResolvedRenderModel(renderModel);
-      });
-
-      // Throttled publish to Kraken
-      throttledPublish(updatedPreset);
-
-      // Schedule persist (debounced)
-      schedulePersist();
-    },
-    [preset, throttledPublish, schedulePersist]
-  );
-
-  const handleTextElementRotateChange = useCallback(
-    (elementId: string, rotateDeg: number) => {
-      if (!preset) return;
-
-      const updatedPreset = updateTextElementRotateHelper(preset, elementId, rotateDeg);
-      if (!updatedPreset) return;
-
-      // Update in-memory preset immediately
-      setPreset(updatedPreset);
-
-      // Update preview render model immediately (async resolution for local media)
-      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
-        const renderModel = presetToRenderModel(resolvedPreset);
-        setResolvedRenderModel(renderModel);
-      });
-
-      // Throttled publish to Kraken
-      throttledPublish(updatedPreset);
-
-      // Schedule persist (debounced)
-      schedulePersist();
-    },
-    [preset, throttledPublish, schedulePersist]
-  );
-
-  const handleTextElementOffsetChange = useCallback(
-    (elementId: string, x: number, y: number) => {
-      if (!preset) return;
-
-      const updatedPreset = updateTextElementOffsetHelper(preset, elementId, x, y);
-      if (!updatedPreset) return;
-
-      // Update in-memory preset immediately
-      setPreset(updatedPreset);
-
-      // Update preview render model immediately (async resolution for local media)
-      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
-        const renderModel = presetToRenderModel(resolvedPreset);
-        setResolvedRenderModel(renderModel);
-      });
-
-      // Throttled publish to Kraken
-      throttledPublish(updatedPreset);
-
-      // Schedule persist (debounced)
-      schedulePersist();
-    },
-    [preset, throttledPublish, schedulePersist]
-  );
-
-  // FAZ-6B: Text element fontSize absolute value handler (minimal - uses existing delta helper)
-  const handleTextElementFontSizeChange = useCallback(
-    (elementId: string, fontSize: number) => {
-      if (!preset || !preset.overlay || !preset.overlay.enabled) return;
-
-      // Find current fontSize
-      const element = preset.overlay.elements.find((el) => el.id === elementId);
-      if (!element || element.elementType !== 'text') return;
-
-      const textElement = element as TextElementConfigComplete;
-      const currentFontSize = textElement.config.fontSize;
-
-      // Calculate delta (absolute → delta)
-      const fontSizeDelta = fontSize - currentFontSize;
-
-      // Use existing delta-based helper (publish/persist/render-model chain already here)
-      applyOverlayElementFontSizeDelta(elementId, fontSizeDelta);
-    },
-    [preset, applyOverlayElementFontSizeDelta]
-  );
-
-  // FAZ-6B: Text element color change handler
-  const handleTextElementColorChange = useCallback(
-    (elementId: string, color: string) => {
-      if (!preset) return;
-
-      const updatedPreset = updateTextElementColorHelper(preset, elementId, color);
-      if (!updatedPreset) return;
-
-      // Update in-memory preset immediately
-      setPreset(updatedPreset);
-
-      // Update preview render model immediately (async resolution for local media)
-      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
-        const renderModel = presetToRenderModel(resolvedPreset);
-        setResolvedRenderModel(renderModel);
-      });
-
-      // Throttled publish to Kraken
-      throttledPublish(updatedPreset);
-
-      // Schedule persist (debounced)
-      schedulePersist();
-    },
-    [preset, throttledPublish, schedulePersist]
-  );
-
-  // FAZ-6B: Text element outline change handler
-  const handleTextElementOutlineChange = useCallback(
-    (elementId: string, outlineWidth: number, outlineColor?: string) => {
-      if (!preset) return;
-
-      const updatedPreset = updateTextElementOutlineHelper(preset, elementId, outlineWidth, outlineColor);
-      if (!updatedPreset) return;
-
-      // Update in-memory preset immediately
-      setPreset(updatedPreset);
-
-      // Update preview render model immediately (async resolution for local media)
-      createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
-        const renderModel = presetToRenderModel(resolvedPreset);
-        setResolvedRenderModel(renderModel);
-      });
-
-      // Throttled publish to Kraken
-      throttledPublish(updatedPreset);
-
-      // Schedule persist (debounced)
-      schedulePersist();
-    },
-    [preset, throttledPublish, schedulePersist]
-  );
-
-  // FAZ-6B: Text color drawer handlers
-  const handleOpenTextColorDrawer = useCallback((elementId: string) => {
-    setTextColorDrawerElementId(elementId);
-    setTextColorDrawerOpen(true);
-  }, []);
-
-  const handleCloseTextColorDrawer = useCallback(() => {
-    setTextColorDrawerOpen(false);
-    setTextColorDrawerElementId(null);
-  }, []);
-
-  // Handle intrinsic size available (autoscale computation + intrinsic persistence)
-  const handleIntrinsicSizeAvailable = useCallback(
-    async (width: number, height: number) => {
-      if (!preset || !preset.background.mediaOverlay) {
-        return;
-      }
-
-      const overlay = preset.background.mediaOverlay;
-      const transform = overlay.transform;
-
-      // Get media source identifier for tracking
-      const mediaId =
-        overlay.source === 'local'
-          ? overlay.media.mediaId
-          : overlay.source === 'youtube'
-            ? overlay.media.videoId
-            : overlay.media.url;
-      const mediaKey = `${overlay.source}:${mediaId}`;
-
-      // Check if autoscale already computed for this media
-      if (autoscaleComputedRef.current.has(mediaKey)) {
-        // Still persist intrinsic even if autoscale was already computed
-        // (in case it wasn't persisted before)
-        if (!overlay.media.intrinsic || overlay.media.intrinsic.width !== width || overlay.media.intrinsic.height !== height) {
-          const updatedPreset: Preset = {
-            ...preset,
-            background: {
-              ...preset.background,
-              mediaOverlay: {
-                ...overlay,
-                media: {
-                  ...overlay.media,
-                  intrinsic: { width, height },
-                } as any,
-              },
-            },
-          };
-
-          setPreset(updatedPreset);
-          savePreset(updatedPreset);
-
-          const resolvedPreset = await createResolvedRenderInput(updatedPreset);
-          const renderModel = presetToRenderModel(resolvedPreset);
-          setResolvedRenderModel(renderModel);
-          sessionBus.publishActivePreset(renderModel);
-        }
-        return;
-      }
-
-      // Check if user has customized transform
-      const isDefaultTransform =
-        transform.scale === 1 &&
-        transform.autoScale === 1 &&
-        transform.offsetX === 0 &&
-        transform.offsetY === 0 &&
-        transform.rotateDeg === 0;
-
-      // Compute autoscale so the media short edge fills the viewport short edge
-      const viewport = getViewportDimensions();
-      const viewportShortEdge = Math.min(viewport.width, viewport.height);
-      const mediaShortEdge = Math.min(width, height);
-      const autoScaleShortEdge = viewportShortEdge / mediaShortEdge;
-
-      // FAZ-4.2.1: Autoscale is baked into world dimensions, not transform.scale
-      // When autoscale is computed:
-      // - autoScale = autoScaleCover (stored as reference)
-      // - scale = 1 (user scale starts at 1, autoscale already applied to world)
-      // - World size will be: intrinsic * autoScale (computed in render layer)
-      const updatedPreset: Preset = {
-        ...preset,
-        background: {
-          ...preset.background,
-          mediaOverlay: {
-            ...overlay,
-            media: {
-              ...overlay.media,
-              intrinsic: { width, height },
-            } as any,
-            transform: isDefaultTransform
-              ? {
-                  ...transform,
-                  autoScale: autoScaleShortEdge,
-                  scale: 1, // User scale = 1 initially (autoscale baked into world size)
-                }
-              : transform,
-          },
-        },
-      };
-
-      setPreset(updatedPreset);
-      savePreset(updatedPreset);
-
-      // Mark as computed
-      autoscaleComputedRef.current.add(mediaKey);
-
-      // Update render model
-      const resolvedPreset = await createResolvedRenderInput(updatedPreset);
-      const renderModel = presetToRenderModel(resolvedPreset);
-      setResolvedRenderModel(renderModel);
-      sessionBus.publishActivePreset(renderModel);
-    },
-    [preset]
-  );
-
-  // FAZ-5.B2: Clear overlay selection when preset changes
-  useEffect(() => {
-    setSelectedOverlayElementId(null);
-  }, [preset?.id]);
-
-  // Reset autoscale tracking when media source changes
-  useEffect(() => {
-    if (!preset?.background.mediaOverlay) {
-      autoscaleComputedRef.current.clear();
-      return;
-    }
-
-    const overlay = preset.background.mediaOverlay;
-    const mediaId =
-      overlay.source === 'local'
-        ? overlay.media.mediaId
-        : overlay.source === 'youtube'
-          ? overlay.media.videoId
-          : overlay.media.url;
-    const mediaKey = `${overlay.source}:${mediaId}`;
-
-    // If media changed, clear tracking for old media
-    const currentKeys = Array.from(autoscaleComputedRef.current);
-    for (const key of currentKeys) {
-      if (key !== mediaKey) {
-        autoscaleComputedRef.current.delete(key);
-      }
-    }
-  }, [preset?.background.mediaOverlay]);
+    schedulePersist();
+  }, [preset, setPreset, schedulePersist]);
 
   if (!isInitialized || !preset) {
     return (
@@ -1494,20 +168,29 @@ export function ConfigApp(): JSX.Element {
     <div className="config-root">
       <ConfigHeader
         onPresetManagerClick={() => setIsPresetManagerOpen(true)}
-        onPresetApplied={handlePresetApplied}
+        onPresetApplied={setPreset}
       />
       <div className="config-content">
-        {/* Section 1: Background Preview + Background Settings */}
         <div className="config-sidebar">
           <div className="config-preview">
             <BackgroundPreview
               model={resolvedRenderModel}
               onIntrinsicSizeAvailable={handleIntrinsicSizeAvailable}
               showOverlayGuides={showOverlayGuides}
-              onTransformDelta={handleTransformDelta}
-              onScaleDelta={handleScaleDelta}
-              onKeyArrow={handleKeyArrow}
-              onDragEnd={handleDragEnd}
+              onTransformDelta={applyTransformDelta}
+              onScaleDelta={(delta) => { applyTransformDelta(0, 0, delta); schedulePersist(); }}
+              onKeyArrow={(dir, shift) => {
+                const viewport = getViewportDimensions();
+                const step = shift ? 0.1 : 0.05;
+                let dx = 0, dy = 0;
+                if (dir === 'left') dx = -step * (viewport.width / 2);
+                else if (dir === 'right') dx = step * (viewport.width / 2);
+                else if (dir === 'up') dy = -step * (viewport.height / 2);
+                else if (dir === 'down') dy = step * (viewport.height / 2);
+                applyTransformDelta(dx, dy);
+                schedulePersist();
+              }}
+              onDragEnd={() => {}}
             />
           </div>
         </div>
@@ -1519,22 +202,15 @@ export function ConfigApp(): JSX.Element {
             onOpenBackgroundMediaModal={handleOpenBackgroundMediaModal}
             onRemoveBackgroundMediaOverlay={handleConfirmRemoveBackgroundMedia}
             transform={preset.background.mediaOverlay?.transform}
-            onTransformChange={handleTransformChange}
+            onTransformChange={(t) => setPreset({ ...preset, background: { ...preset.background, mediaOverlay: { ...preset.background.mediaOverlay!, transform: t } } })}
             showOverlayGuides={showOverlayGuides}
             onOverlayGuidesChange={setShowOverlayGuides}
             mediaOverlaySource={preset.background.mediaOverlay?.source}
           />
         </div>
         
-        {/* Divider */}
-        <div style={{
-          gridColumn: '1 / -1',
-          height: '1px',
-          backgroundColor: 'rgba(255, 255, 255, 0.06)',
-          margin: '24px 0',
-        }} />
+        <div style={{ gridColumn: '1 / -1', height: '1px', backgroundColor: 'rgba(255, 255, 255, 0.06)', margin: '24px 0' }} />
         
-        {/* Section 2: Overlay Preview + Overlay Settings */}
         <div className="config-sidebar">
           <div className="config-preview">
             <OverlayPreview
@@ -1543,15 +219,23 @@ export function ConfigApp(): JSX.Element {
               onOverlayElementSelect={setSelectedOverlayElementId}
               onOverlayElementTransformDelta={applyOverlayElementTransformDelta}
               onOverlayElementFontSizeDelta={applyOverlayElementFontSizeDelta}
-              onOverlayElementKeyArrow={handleOverlayElementKeyArrow}
-              onOverlayElementDragEnd={persistImmediate}
+              onOverlayElementKeyArrow={(id, dir) => {
+                 const step = 1;
+                 let dx = 0, dy = 0;
+                 if (dir === 'left') dx = -step;
+                 else if (dir === 'right') dx = step;
+                 else if (dir === 'up') dy = -step;
+                 else if (dir === 'down') dy = step;
+                 applyOverlayElementTransformDelta(id, dx, dy);
+                 schedulePersist();
+              }}
+              onOverlayElementDragEnd={() => {}}
               showBackground={showBackground}
               backgroundOpacity={backgroundOpacity}
             />
           </div>
         </div>
         <div className="background-panel">
-          {/* FAZ-5.C2: Overlay Settings Panel with Element List */}
           <OverlaySettingsPanel
             overlayEnabled={preset.overlay?.enabled ?? false}
             elements={preset.overlay?.elements ?? []}
@@ -1561,33 +245,52 @@ export function ConfigApp(): JSX.Element {
             onAddTextOverlay={handleAddTextOverlay}
             onAddShapeOverlay={handleAddShapeOverlay}
             onElementSelect={setSelectedOverlayElementId}
-            onElementMoveUp={handleOverlayElementMoveUp}
-            onElementMoveDown={handleOverlayElementMoveDown}
-            onElementDelete={handleOverlayElementDelete}
+            onElementMoveUp={handleElementMoveUp}
+            onElementMoveDown={handleElementMoveDown}
+            onElementDelete={handleElementDelete}
             showBackground={showBackground}
             backgroundOpacity={backgroundOpacity}
             onShowBackgroundChange={setShowBackground}
             onBackgroundOpacityChange={setBackgroundOpacity}
             collapsedElementIds={collapsedElementIds}
             onToggleElementCollapse={handleToggleElementCollapse}
-            onTextElementContentChange={handleTextElementContentChange}
-            onTextElementFontSizeChange={handleTextElementFontSizeChange}
-            onTextElementFontFamilyChange={handleTextElementFontFamilyChange}
-            onTextElementRotateChange={handleTextElementRotateChange}
-            onTextElementOffsetChange={handleTextElementOffsetChange}
+            onTextElementContentChange={(id, content) => updateTextElement(id, c => ({ ...c, content }))}
+            onTextElementFontSizeChange={(id, size) => {
+              const el = preset.overlay?.elements.find(e => e.id === id) as TextElementConfigComplete;
+              if (el) applyOverlayElementFontSizeDelta(id, size - el.config.fontSize);
+            }}
+            onTextElementFontFamilyChange={(id, fontFamily) => updateTextElement(id, c => ({ ...c, fontFamily }))}
+            onTextElementRotateChange={(id, rotateDeg) => {
+              const index = preset.overlay!.elements.findIndex(el => el.id === id);
+              const element = preset.overlay!.elements[index];
+              const updated = { ...element, transform: normalizeBaseTransform({ ...element.transform, rotateDeg }) };
+              const elements = [...preset.overlay!.elements];
+              elements[index] = updated;
+              setPreset({ ...preset, overlay: { ...preset.overlay!, elements } });
+              schedulePersist();
+            }}
+            onTextElementOffsetChange={(id, x, y) => {
+              const index = preset.overlay!.elements.findIndex(el => el.id === id);
+              const element = preset.overlay!.elements[index];
+              const updated = { ...element, transform: normalizeBaseTransform({ ...element.transform, x, y }) };
+              const elements = [...preset.overlay!.elements];
+              elements[index] = updated;
+              setPreset({ ...preset, overlay: { ...preset.overlay!, elements } });
+              schedulePersist();
+            }}
             textColorDrawerOpen={textColorDrawerOpen}
             textColorDrawerElementId={textColorDrawerElementId}
-            onOpenTextColorDrawer={handleOpenTextColorDrawer}
-            onCloseTextColorDrawer={handleCloseTextColorDrawer}
-            onTextElementColorChange={handleTextElementColorChange}
-            onTextElementOutlineChange={handleTextElementOutlineChange}
+            onOpenTextColorDrawer={setTextColorDrawerElementId}
+            onCloseTextColorDrawer={() => setTextColorDrawerElementId(null)}
+            onTextElementColorChange={(id, color) => updateTextElement(id, c => ({ ...c, color }))}
+            onTextElementOutlineChange={(id, w, c) => updateTextElement(id, conf => ({ ...conf, outlineWidth: w, outlineColor: w > 0 && c === undefined ? '#000000' : c }))}
           />
         </div>
       </div>
       <PresetManagerPanel
         isOpen={isPresetManagerOpen}
         onClose={() => setIsPresetManagerOpen(false)}
-        onPresetApplied={handlePresetApplied}
+        onPresetApplied={setPreset}
       />
     </div>
   );

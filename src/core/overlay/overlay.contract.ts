@@ -108,8 +108,7 @@ export const overlayContract: OverlayContract = {
     const elements: OverlayElementRenderModel[] = [];
 
     for (const element of config.elements) {
-      const el = element as any;
-      if (el.elementType === 'text') {
+      if (element.elementType === 'text') {
         try {
           // Normalize TEXT element (defensive, may fail)
           const normalizedElement = textElementContract.normalize(element as TextElementConfigComplete);
@@ -141,7 +140,7 @@ export const overlayContract: OverlayContract = {
           console.warn(`Failed to resolve TEXT element ${element.id}:`, error);
           continue;
         }
-      } else if (el.elementType === 'shape') {
+      } else if (element.elementType === 'shape') {
         try {
           // Normalize SHAPE element (defensive, may fail)
           const normalizedElement = shapeElementContract.normalize(element as ShapeElementConfigComplete);
@@ -175,7 +174,7 @@ export const overlayContract: OverlayContract = {
         }
       } else {
         // Unknown element type: skip (permissive)
-        console.warn(`Unknown overlay element type: ${el.elementType}, skipping`);
+        console.warn(`Unknown overlay element type: ${element.elementType}, skipping`);
       }
     }
 
