@@ -1,15 +1,7 @@
 import { useState, useCallback } from 'react';
 import type { Preset } from '../../../core/preset/preset.types';
-import {
-  toggleOverlayEnabled,
-  addTextOverlayElement,
-  addShapeOverlayElement
-} from '../overlay/overlayHelpers';
-import {
-  moveOverlayElementUp,
-  moveOverlayElementDown,
-  deleteOverlayElement
-} from '../overlay/overlayListHelpers';
+import { toggleOverlayEnabled, addTextOverlayElement, addShapeOverlayElement } from '../overlay/overlayHelpers';
+import { moveOverlayElementUp, moveOverlayElementDown, deleteOverlayElement } from '../overlay/overlayListHelpers';
 
 export function useOverlayManager(preset: Preset | null, setPreset: (preset: Preset) => void) {
   const [selectedOverlayElementId, setSelectedOverlayElementId] = useState<string | null>(null);
@@ -36,47 +28,30 @@ export function useOverlayManager(preset: Preset | null, setPreset: (preset: Pre
 
   const handleElementDelete = useCallback((index: number) => {
     if (!preset) return;
-    const elementToDelete = preset.overlay?.elements[index];
+    const el = preset.overlay?.elements[index];
     const updated = deleteOverlayElement(preset, index);
     if (updated) {
-      if (elementToDelete && selectedOverlayElementId === elementToDelete.id) {
-        setSelectedOverlayElementId(null);
-      }
+      if (el && selectedOverlayElementId === el.id) setSelectedOverlayElementId(null);
       setPreset(updated);
     }
   }, [preset, selectedOverlayElementId, setPreset]);
 
-  const handleToggleElementCollapse = useCallback((elementId: string) => {
+  const handleToggleElementCollapse = useCallback((id: string) => {
     setCollapsedElementIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(elementId)) next.delete(elementId);
-      else next.add(elementId);
-      return next;
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
     });
   }, []);
 
   return {
-    selectedOverlayElementId,
-    setSelectedOverlayElementId,
-    collapsedElementIds,
-    handleToggleElementCollapse,
-    textColorDrawerOpen,
-    setTextColorDrawerOpen,
-    textColorDrawerElementId,
-    setTextColorDrawerElementId,
-    handleToggleOverlayEnabled,
-    handleAddTextOverlay,
-    handleAddShapeOverlay,
+    selectedOverlayElementId, setSelectedOverlayElementId,
+    collapsedElementIds, handleToggleElementCollapse,
+    textColorDrawerOpen, setTextColorDrawerOpen,
+    textColorDrawerElementId, setTextColorDrawerElementId,
+    handleToggleOverlayEnabled, handleAddTextOverlay, handleAddShapeOverlay,
     handleElementDelete,
-    handleElementMoveUp: (index: number) => {
-      if (!preset) return;
-      const updated = moveOverlayElementUp(preset, index);
-      if (updated) setPreset(updated);
-    },
-    handleElementMoveDown: (index: number) => {
-      if (!preset) return;
-      const updated = moveOverlayElementDown(preset, index);
-      if (updated) setPreset(updated);
-    }
+    handleElementMoveUp: (i: number) => { if (preset) { const u = moveOverlayElementUp(preset, i); if (u) setPreset(u); } },
+    handleElementMoveDown: (i: number) => { if (preset) { const u = moveOverlayElementDown(preset, i); if (u) setPreset(u); } }
   };
 }

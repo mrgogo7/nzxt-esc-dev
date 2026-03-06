@@ -4,7 +4,6 @@
 export const Logger = {
   error: (context: string, message: string, error?: unknown) => {
     console.error(`[ERROR][${context}] ${message}`, error);
-    // Future: Send to an external logging service (e.g. Sentry)
   },
   warn: (context: string, message: string) => {
     console.warn(`[WARN][${context}] ${message}`);

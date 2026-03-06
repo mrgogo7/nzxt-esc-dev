@@ -6,129 +6,46 @@ import { localMediaResolver } from '../../../storage/localMediaResolver';
 
 export function useMediaOverlay(preset: Preset | null, setPreset: (preset: Preset) => void) {
   const autoscaleComputedRef = useRef<Set<string>>(new Set());
-
-  const handleIntrinsicSizeAvailable = useCallback(
-    async (width: number, height: number) => {
-      if (!preset || !preset.background.mediaOverlay) return;
-
-      const overlay = preset.background.mediaOverlay;
-      const mediaId = overlay.source === 'local' ? overlay.media.mediaId :
-                      overlay.source === 'youtube' ? overlay.media.videoId : overlay.media.url;
-      const mediaKey = `${overlay.source}:${mediaId}`;
-
-      if (autoscaleComputedRef.current.has(mediaKey)) {
-        if (!overlay.media.intrinsic || overlay.media.intrinsic.width !== width || overlay.media.intrinsic.height !== height) {
-           setPreset({
-            ...preset,
-            background: {
-              ...preset.background,
-              mediaOverlay: {
-                ...overlay,
-                media: { ...overlay.media, intrinsic: { width, height } } as any,
-              },
-            },
-          });
-        }
-        return;
+  const handleIntrinsicSizeAvailable = useCallback(async (width: number, height: number) => {
+    if (!preset || !preset.background.mediaOverlay) return;
+    const overlay = preset.background.mediaOverlay;
+    const mediaId = overlay.source === 'local' ? overlay.media.mediaId : overlay.source === 'youtube' ? overlay.media.videoId : overlay.media.url;
+    const key = `${overlay.source}:${mediaId}`;
+    if (autoscaleComputedRef.current.has(key)) {
+      if (!overlay.media.intrinsic || overlay.media.intrinsic.width !== width || overlay.media.intrinsic.height !== height) {
+        setPreset({ ...preset, background: { ...preset.background, mediaOverlay: { ...overlay, media: { ...overlay.media, intrinsic: { width, height } } as any } } });
       }
+      return;
+    }
+    const vp = getViewportDimensions();
+    const autoScale = Math.min(vp.width, vp.height) / Math.min(width, height);
+    setPreset({ ...preset, background: { ...preset.background, mediaOverlay: { ...overlay, media: { ...overlay.media, intrinsic: { width, height } } as any, transform: { ...overlay.transform, autoScale, scale: 1 } } } });
+    autoscaleComputedRef.current.add(key);
+  }, [preset, setPreset]);
 
-      const viewport = getViewportDimensions();
-      const viewportShortEdge = Math.min(viewport.width, viewport.height);
-      const mediaShortEdge = Math.min(width, height);
-      const autoScaleShortEdge = viewportShortEdge / mediaShortEdge;
-
-      setPreset({
-        ...preset,
-        background: {
-          ...preset.background,
-          mediaOverlay: {
-            ...overlay,
-            media: { ...overlay.media, intrinsic: { width, height } } as any,
-            transform: {
-              ...overlay.transform,
-              autoScale: autoScaleShortEdge,
-              scale: 1,
-            },
-          },
-        },
-      });
-
-      autoscaleComputedRef.current.add(mediaKey);
-    },
-    [preset, setPreset]
-  );
-
-  const applyTransformDelta = useCallback(
-    (deltaX: number, deltaY: number, deltaScale?: number) => {
-      if (!preset || !preset.background.mediaOverlay) return;
-
-      const viewport = getViewportDimensions();
-      const currentTransform = preset.background.mediaOverlay.transform;
-      const offsetDeltaX = deltaX / (viewport.width / 2);
-      const offsetDeltaY = deltaY / (viewport.height / 2);
-
-      let newTransform = { ...currentTransform };
-      if (deltaScale !== undefined) {
-        newTransform.scale = Math.max(0.01, currentTransform.scale * (1 + deltaScale));
-      } else {
-        newTransform.offsetX = currentTransform.offsetX + offsetDeltaX;
-        newTransform.offsetY = currentTransform.offsetY + offsetDeltaY;
-      }
-
-      newTransform = normalizeMediaOverlayTransform(newTransform);
-
-      setPreset({
-        ...preset,
-        background: {
-          ...preset.background,
-          mediaOverlay: {
-            ...preset.background.mediaOverlay,
-            transform: newTransform,
-          },
-        },
-      });
-    },
-    [preset, setPreset]
-  );
+  const applyTransformDelta = useCallback((dx: number, dy: number, ds?: number) => {
+    if (!preset || !preset.background.mediaOverlay) return;
+    const vp = getViewportDimensions();
+    const t = preset.background.mediaOverlay.transform;
+    let nt = { ...t };
+    if (ds !== undefined) nt.scale = Math.max(0.01, t.scale * (1 + ds));
+    else { nt.offsetX = t.offsetX + dx / (vp.width / 2); nt.offsetY = t.offsetY + dy / (vp.height / 2); }
+    setPreset({ ...preset, background: { ...preset.background, mediaOverlay: { ...preset.background.mediaOverlay, transform: normalizeMediaOverlayTransform(nt) } } });
+  }, [preset, setPreset]);
 
   const handleRemoveMediaOverlay = useCallback(() => {
     if (!preset || !preset.background.mediaOverlay) return;
-
-    if (preset.background.mediaOverlay.source === 'local') {
-      const mediaId = preset.background.mediaOverlay.media.mediaId;
-      if (mediaId) localMediaResolver.revokeMediaId(mediaId);
-    }
-
-    setPreset({
-      ...preset,
-      background: {
-        ...preset.background,
-        mediaOverlay: undefined,
-      },
-    });
+    if (preset.background.mediaOverlay.source === 'local') localMediaResolver.revokeMediaId(preset.background.mediaOverlay.media.mediaId);
+    setPreset({ ...preset, background: { ...preset.background, mediaOverlay: undefined } });
   }, [preset, setPreset]);
 
-  // Reset autoscale tracking when media source changes
   useEffect(() => {
-    if (!preset?.background.mediaOverlay) {
-      autoscaleComputedRef.current.clear();
-      return;
-    }
-
+    if (!preset?.background.mediaOverlay) { autoscaleComputedRef.current.clear(); return; }
     const overlay = preset.background.mediaOverlay;
-    const mediaId = overlay.source === 'local' ? overlay.media.mediaId :
-                    overlay.source === 'youtube' ? overlay.media.videoId : overlay.media.url;
-    const mediaKey = `${overlay.source}:${mediaId}`;
-
-    const currentKeys = Array.from(autoscaleComputedRef.current);
-    for (const key of currentKeys) {
-      if (key !== mediaKey) autoscaleComputedRef.current.delete(key);
-    }
+    const mediaId = overlay.source === 'local' ? overlay.media.mediaId : overlay.source === 'youtube' ? overlay.media.videoId : overlay.media.url;
+    const key = `${overlay.source}:${mediaId}`;
+    Array.from(autoscaleComputedRef.current).forEach(k => { if (k !== key) autoscaleComputedRef.current.delete(k); });
   }, [preset?.background.mediaOverlay]);
 
-  return {
-    handleIntrinsicSizeAvailable,
-    applyTransformDelta,
-    handleRemoveMediaOverlay
-  };
+  return { handleIntrinsicSizeAvailable, applyTransformDelta, handleRemoveMediaOverlay };
 }
