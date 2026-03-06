@@ -1227,7 +1227,7 @@ export function ConfigApp(): JSX.Element {
       // Update preview render model immediately (async resolution for local media)
       createResolvedRenderInput(updatedPreset).then((resolvedPreset) => {
         const renderModel = presetToRenderModel(resolvedPreset);
-        setResolvedRenderModel(resolvedPreset);
+        setResolvedRenderModel(renderModel);
       });
 
       // Throttled publish to Kraken
@@ -1381,7 +1381,7 @@ export function ConfigApp(): JSX.Element {
                 media: {
                   ...overlay.media,
                   intrinsic: { width, height },
-                },
+                } as any,
               },
             },
           };
@@ -1425,7 +1425,7 @@ export function ConfigApp(): JSX.Element {
             media: {
               ...overlay.media,
               intrinsic: { width, height },
-            },
+            } as any,
             transform: isDefaultTransform
               ? {
                   ...transform,

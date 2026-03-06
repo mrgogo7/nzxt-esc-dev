@@ -130,4 +130,5 @@ export const en = {
   backgroundMediaOverlayGuides: 'Overlay Guides',
   backgroundMediaYoutubeProxyTitle: 'YouTube Video Cannot Be Played Here',
   backgroundMediaYoutubeProxyDescription: 'Use this area to position the video.',
+  backgroundMediaTransformRotateYoutubeDisabled: 'Rotation is not supported for YouTube videos',
 } as const;
