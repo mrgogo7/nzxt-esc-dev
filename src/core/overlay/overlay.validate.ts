@@ -8,7 +8,6 @@
 
 import type {
   OverlayConfig,
-  OverlayElement,
   OverlayElementType,
   OverlayElementBase,
 } from './overlay.types';
@@ -125,4 +124,3 @@ export function isValidOverlayConfigShape(config: unknown): config is OverlayCon
 
   return true;
 }
-

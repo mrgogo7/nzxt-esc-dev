@@ -270,7 +270,7 @@ export function BackgroundSettingsPanel({
                       fontStyle: 'italic',
                     }}
                   >
-                    {t('backgroundMediaTransformRotateYoutubeDisabled') || 'Rotation is not supported for YouTube videos'}
+                    {t('backgroundMediaTransformRotateYoutubeDisabled')}
                   </div>
                 )}
               </div>

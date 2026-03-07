@@ -124,6 +124,7 @@ export const en = {
   backgroundMediaMenuSelectAll: 'Select All',
   backgroundMediaTransformScale: 'Resize',
   backgroundMediaTransformRotate: 'Rotate',
+  backgroundMediaTransformRotateYoutubeDisabled: 'Rotation is not supported for YouTube videos',
   backgroundMediaTransformOffsetX: 'X Offset',
   backgroundMediaTransformOffsetY: 'Y Offset',
   backgroundMediaTransformReset: 'Reset',

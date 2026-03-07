@@ -9,7 +9,7 @@ import { OverlaySettingsPanel } from './panels/OverlaySettingsPanel';
 import { PresetManagerPanel } from './panels/PresetManagerPanel';
 import { ConfigHeader } from './layout/ConfigHeader';
 import { getViewportDimensions } from '../../render/viewport';
-import { updateOverlayElementTransform, updateOverlayElementFontSize } from './overlay/overlayUpdates';
+import { updateOverlayElementTransform, updateOverlayElementFontSize, updateOverlayElementResize } from './overlay/overlayUpdates';
 import type { OverlayElement } from '../../core/overlay/overlay.types';
 import type { TextElementConfigComplete } from '../../core/elements/text/text.types';
 import { normalizeTextElementConfig } from '../../core/elements/text/text.defaults';
@@ -67,6 +67,18 @@ export function ConfigApp(): JSX.Element {
     if (updated) setPreset(updated);
   }, [preset, setPreset]);
 
+  const applyOverlayElementRotateDelta = useCallback((id: string, deltaDeg: number) => {
+    if (!preset) return;
+    const updated = updateOverlayElementTransform(preset, id, 0, 0, deltaDeg);
+    if (updated) setPreset(updated);
+  }, [preset, setPreset]);
+
+  const applyOverlayElementResizeDelta = useCallback((id: string, dx: number, dy: number) => {
+    if (!preset) return;
+    const updated = updateOverlayElementResize(preset, id, dx, dy);
+    if (updated) setPreset(updated);
+  }, [preset, setPreset]);
+
   const applyOverlayElementFontSizeDelta = useCallback((id: string, delta: number) => {
     if (!preset) return;
     const updated = updateOverlayElementFontSize(preset, id, delta);
@@ -101,7 +113,7 @@ export function ConfigApp(): JSX.Element {
         <div style={{ gridColumn: '1 / -1', height: '1px', backgroundColor: 'rgba(255, 255, 255, 0.06)', margin: '24px 0' }} />
         <div className="config-sidebar">
           <div className="config-preview">
-            <OverlayPreview model={resolvedRenderModel} selectedOverlayElementId={selectedOverlayElementId} onOverlayElementSelect={setSelectedOverlayElementId} onOverlayElementTransformDelta={applyOverlayElementTransformDelta} onOverlayElementFontSizeDelta={applyOverlayElementFontSizeDelta} onOverlayElementKeyArrow={(id, dir) => { const step = 1; let dx = 0, dy = 0; if (dir === 'left') dx = -step; else if (dir === 'right') dx = step; else if (dir === 'up') dy = -step; else if (dir === 'down') dy = step; applyOverlayElementTransformDelta(id, dx, dy); schedulePersist(); }} onOverlayElementDragEnd={() => {}} showBackground={showBackground} backgroundOpacity={backgroundOpacity} />
+            <OverlayPreview model={resolvedRenderModel} selectedOverlayElementId={selectedOverlayElementId} onOverlayElementSelect={setSelectedOverlayElementId} onOverlayElementTransformDelta={applyOverlayElementTransformDelta} onOverlayElementRotateDelta={applyOverlayElementRotateDelta} onOverlayElementResizeDelta={applyOverlayElementResizeDelta} onOverlayElementFontSizeDelta={applyOverlayElementFontSizeDelta} onOverlayElementKeyArrow={(id, dir) => { const step = 1; let dx = 0, dy = 0; if (dir === 'left') dx = -step; else if (dir === 'right') dx = step; else if (dir === 'up') dy = -step; else if (dir === 'down') dy = step; applyOverlayElementTransformDelta(id, dx, dy); schedulePersist(); }} onOverlayElementDragEnd={() => {}} showBackground={showBackground} backgroundOpacity={backgroundOpacity} />
           </div>
         </div>
         <div className="background-panel">

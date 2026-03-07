@@ -8,6 +8,7 @@
 
 import type { BaseElementTransform } from '../elements/base/element.transform.types';
 import type { OverlayConfig, OverlayElement } from './overlay.types';
+import { round } from '../utils/math';
 
 /**
  * Default base transform for overlay elements.
@@ -55,17 +56,17 @@ export function normalizeBaseTransform(
 
   const x =
     typeof transform.x === 'number' && Number.isFinite(transform.x)
-      ? Math.max(-3, Math.min(3, transform.x))
+      ? round(Math.max(-3, Math.min(3, transform.x)), 2)
       : DEFAULT_BASE_TRANSFORM.x;
 
   const y =
     typeof transform.y === 'number' && Number.isFinite(transform.y)
-      ? Math.max(-3, Math.min(3, transform.y))
+      ? round(Math.max(-3, Math.min(3, transform.y)), 2)
       : DEFAULT_BASE_TRANSFORM.y;
 
   const rotateDeg =
     typeof transform.rotateDeg === 'number' && Number.isFinite(transform.rotateDeg)
-      ? Math.max(-180, Math.min(180, transform.rotateDeg))
+      ? round(Math.max(-180, Math.min(180, transform.rotateDeg)), 2)
       : DEFAULT_BASE_TRANSFORM.rotateDeg;
 
   return { x, y, rotateDeg };
