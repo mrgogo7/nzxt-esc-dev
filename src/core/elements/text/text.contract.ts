@@ -5,7 +5,7 @@
 
 import type { TextElementConfig, TextElementConfigComplete } from './text.types';
 import type { BaseElementTransform } from '../base/element.transform.types';
-import { normalizeTextElement, normalizeTextElementConfig } from './text.defaults';
+import { normalizeTextElement } from './text.defaults';
 
 /**
  * TEXT element render data.

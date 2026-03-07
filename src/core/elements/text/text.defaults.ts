@@ -4,7 +4,6 @@
 // TEXT uses content-driven sizing (fontSize), not box-driven sizing (width/height).
 
 import type { TextElementConfig, TextElementConfigComplete } from './text.types';
-import type { BaseElementTransform } from '../base/element.transform.types';
 import { normalizeBaseTransform } from '../../overlay/overlay.defaults';
 
 /**

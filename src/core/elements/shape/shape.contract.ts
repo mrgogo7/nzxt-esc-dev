@@ -5,7 +5,7 @@
 
 import type { ShapeElementConfig, ShapeElementConfigComplete } from './shape.types';
 import type { BaseElementTransform } from '../base/element.transform.types';
-import { normalizeShapeElement, normalizeShapeElementConfig } from './shape.defaults';
+import { normalizeShapeElement } from './shape.defaults';
 
 /**
  * SHAPE element render data.

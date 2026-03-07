@@ -4,7 +4,6 @@
 // SHAPE uses box-driven sizing (width/height), not content-driven sizing.
 
 import type { ShapeElementConfig, ShapeElementConfigComplete } from './shape.types';
-import type { BaseElementTransform } from '../base/element.transform.types';
 import { normalizeBaseTransform } from '../../overlay/overlay.defaults';
 
 /**

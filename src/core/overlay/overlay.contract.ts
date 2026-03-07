@@ -11,9 +11,6 @@ import type {
   OverlayRenderModel,
   OverlayElementRenderModel,
 } from './overlay.types';
-import type { BaseElementTransform } from '../elements/base/element.transform.types';
-import type { TextElementConfigComplete } from '../elements/text/text.types';
-import type { ShapeElementConfigComplete } from '../elements/shape/shape.types';
 import { normalizeOverlayConfig } from './overlay.defaults';
 import { isValidOverlayConfigShape, isValidBaseTransformShape } from './overlay.validate';
 import { textElementContract } from '../elements/text/text.contract';
@@ -108,10 +105,11 @@ export const overlayContract: OverlayContract = {
     const elements: OverlayElementRenderModel[] = [];
 
     for (const element of config.elements) {
-      if (element.elementType === 'text') {
+      const el = element as any;
+      if (el.elementType === 'text') {
         try {
           // Normalize TEXT element (defensive, may fail)
-          const normalizedElement = textElementContract.normalize(element as TextElementConfigComplete);
+          const normalizedElement = textElementContract.normalize(element as any);
 
           if (!normalizedElement) {
             // Normalization failed: skip element (permissive)
@@ -140,10 +138,10 @@ export const overlayContract: OverlayContract = {
           console.warn(`Failed to resolve TEXT element ${element.id}:`, error);
           continue;
         }
-      } else if (element.elementType === 'shape') {
+      } else if (el.elementType === 'shape') {
         try {
           // Normalize SHAPE element (defensive, may fail)
-          const normalizedElement = shapeElementContract.normalize(element as ShapeElementConfigComplete);
+          const normalizedElement = shapeElementContract.normalize(element as any);
 
           if (!normalizedElement) {
             // Normalization failed: skip element (permissive)
@@ -174,7 +172,7 @@ export const overlayContract: OverlayContract = {
         }
       } else {
         // Unknown element type: skip (permissive)
-        console.warn(`Unknown overlay element type: ${element.elementType}, skipping`);
+        console.warn(`Unknown overlay element type: ${el.elementType}, skipping`);
       }
     }
 

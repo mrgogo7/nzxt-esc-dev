@@ -7,8 +7,6 @@
 // - Delete element functionality
 // - Add TEXT overlay button
 
-import React from 'react';
-import { useTranslation } from '../../../i18n';
 import { ChevronUp, ChevronDown, Trash2, ChevronRight } from 'lucide-react';
 import type { OverlayElement } from '../../../core/overlay/overlay.types';
 import type { TextElementConfigComplete } from '../../../core/elements/text/text.types';
@@ -133,7 +131,6 @@ export function OverlaySettingsPanel({
   onTextElementColorChange,
   onTextElementOutlineChange,
 }: OverlaySettingsPanelProps): JSX.Element {
-  const { t } = useTranslation();
   const elementCount = elements.length;
 
   return (

@@ -262,7 +262,7 @@ export function renderMediaOverlay(
  */
 export function renderOverlay(
   model: RenderModel,
-  viewport: ViewportDimensions
+  _viewport: ViewportDimensions
 ): OverlayElementRenderModel[] | null {
   const overlay = model.overlay;
 

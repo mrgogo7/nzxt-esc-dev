@@ -4,11 +4,11 @@
 // Renders ONLY overlay elements (no background content).
 // Uses the same render pipeline as BackgroundPreview and Kraken (parity guarantee).
 
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import type { RenderModel } from '../../../render/model/render.types';
 import { renderBackground, renderMediaOverlay, renderOverlay, renderOverlayElement } from '../../../render/engine';
 import { getViewportDimensions } from '../../../render/viewport';
-import type { TextElementRenderData, ShapeElementRenderData } from '../../../core/overlay/overlay.types';
+import type { TextElementRenderData } from '../../../core/overlay/overlay.types';
 import './preview.css';
 
 interface OverlayPreviewProps {
@@ -147,25 +147,6 @@ export function OverlayPreview({
     }
   };
 
-  const handleOverlayElementResizePointerMove = (e: React.PointerEvent) => {
-    if (!isResizingOverlayRef.current || !draggedOverlayElementIdRef.current || !lastOverlayPointerPosRef.current || !containerRef.current) return;
-    if (!onOverlayElementFontSizeDelta) return;
-    
-    e.preventDefault();
-    const rect = containerRef.current.getBoundingClientRect();
-    const currentY = e.clientY - rect.top;
-    
-    const deltaY = (currentY - lastOverlayPointerPosRef.current.y) / previewScale;
-    
-    // fontSize delta derived from vertical mouse movement
-    // Scale factor: 0.5 means 1px mouse movement = 0.5px fontSize change
-    const scaleFactor = 0.5;
-    const fontSizeDelta = deltaY * scaleFactor;
-    
-    onOverlayElementFontSizeDelta(draggedOverlayElementIdRef.current, fontSizeDelta);
-    
-    lastOverlayPointerPosRef.current = { x: e.clientX - rect.left, y: currentY };
-  };
 
   const handleOverlayElementResizePointerUp = (e: React.PointerEvent) => {
     if (!isResizingOverlayRef.current) return;

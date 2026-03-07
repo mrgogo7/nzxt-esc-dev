@@ -8,7 +8,6 @@
 
 import type {
   OverlayConfig,
-  OverlayElement,
   OverlayElementType,
   OverlayElementBase,
 } from './overlay.types';

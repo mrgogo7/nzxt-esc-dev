@@ -50,7 +50,7 @@ export interface RenderModelSnapshot {
 class SessionBus {
   private channel: BroadcastChannel | null = null;
   private subscribers: Set<(snapshot: RenderModelSnapshot) => void> = new Set();
-  private readonly channelName = 'nzxt-esc-v2:sync';
+  private readonly channelName = 'nzxt-esc-dev:sync';
 
   constructor() {
     if (typeof BroadcastChannel !== 'undefined') {
@@ -124,7 +124,7 @@ class SessionBus {
     }
 
     try {
-      const key = 'nzxt-esc-v2:sync:activePreset';
+      const key = 'nzxt-esc-dev:sync:activePreset';
       const value = JSON.stringify(snapshot);
       localStorage.setItem(key, value);
       localStorage.removeItem(key);
@@ -137,7 +137,7 @@ class SessionBus {
    * Handles storage events for sync fallback.
    */
   private handleStorageEvent(event: StorageEvent): void {
-    if (event.key === 'nzxt-esc-v2:sync:activePreset' && event.newValue) {
+    if (event.key === 'nzxt-esc-dev:sync:activePreset' && event.newValue) {
       try {
         const snapshot = JSON.parse(event.newValue) as RenderModelSnapshot;
         this.notifySubscribers(snapshot);
