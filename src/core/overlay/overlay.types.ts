@@ -7,10 +7,8 @@
 // Overlay elements follow element contract pattern (validate, normalize, toRenderModel).
 
 import type { BaseElementTransform } from '../elements/base/element.transform.types';
-import type { TextElementRenderData } from '../elements/text/text.contract';
-import type { ShapeElementRenderData } from '../elements/shape/shape.contract';
-
-export type { TextElementRenderData, ShapeElementRenderData };
+import type { TextElementConfigComplete } from '../elements/text/text.types';
+import type { ShapeElementConfigComplete } from '../elements/shape/shape.types';
 
 /**
  * Overlay element type discriminator.
