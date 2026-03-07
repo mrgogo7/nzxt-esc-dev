@@ -8,17 +8,14 @@ import type {
   BackgroundSourceType,
 } from '../core/background/base/background.base.types';
 import type { MediaOverlayRenderModel } from '../core/background/media-overlay/media-overlay.types';
-import type { OverlayRenderModel, OverlayElementRenderModel, TextElementRenderData, ShapeElementRenderData } from '../core/overlay/overlay.types';
+import type { OverlayRenderModel, OverlayElementRenderModel } from '../core/overlay/overlay.types';
 import { mediaOverlayContract } from '../core/background/media-overlay/media-overlay.contract';
 import { overlayContract } from '../core/overlay/overlay.contract';
 import { getBackgroundContract } from '../core/background/registry';
+import { getElementContract } from '../core/elements/registry';
+import type { CSSStyleProperties } from '../core/elements/registry';
 
-/**
- * CSS style properties for rendering.
- */
-export interface CSSStyleProperties {
-  [key: string]: string | number | undefined;
-}
+export type { CSSStyleProperties };
 
 const DEFAULT_BACKGROUND: BackgroundRenderModel = {
   kind: 'color',
@@ -262,7 +259,7 @@ export function renderMediaOverlay(
  */
 export function renderOverlay(
   model: RenderModel,
-  viewport: ViewportDimensions
+  _viewport: ViewportDimensions
 ): OverlayElementRenderModel[] | null {
   const overlay = model.overlay;
 
@@ -276,20 +273,7 @@ export function renderOverlay(
 }
 
 /**
- * Computes CSS styles for a TEXT overlay element.
- *
- * FAZ-5.B1: TEXT element rendering.
- *
- * Render math:
- * - x/y: normalized -3..3 → pixel offsets (viewport-relative)
- * - rotateDeg: degrees → CSS rotate
- * - fontSize: pixels (direct)
- * - color: hex string (direct)
- *
- * Positioning:
- * - Element is absolutely positioned at viewport center + offset
- * - Transform origin is element center
- * - Rotation pivots at element center
+ * Computes CSS styles for an overlay element using its registered contract.
  *
  * This function is pure and deterministic (same input → same output).
  * Preview and Kraken use identical math (parity guarantee).
@@ -298,84 +282,10 @@ export function renderOverlayElement(
   element: OverlayElementRenderModel,
   viewport: ViewportDimensions
 ): CSSStyleProperties | null {
-  // Convert normalized x/y offsets to pixel offsets
-  // x/y range: -3..3, converted to pixels: offset * (viewport / 2)
-  // For 640x640 viewport: -3 = -960px, +3 = +960px
-  const pixelX = element.transform.x * (viewport.width / 2);
-  const pixelY = element.transform.y * (viewport.height / 2);
-
-  // Position element at viewport center + offset
-  // Transform origin is center (for rotation pivot)
-  const positionStyle: CSSStyleProperties = {
-    position: 'absolute',
-    left: '50%',
-    top: '50%',
-    transform: `translate(${pixelX}px, ${pixelY}px) rotate(${element.transform.rotateDeg}deg)`,
-    transformOrigin: 'center center',
-  };
-
-  if (element.elementType === 'text') {
-    const renderData = element.renderData as TextElementRenderData;
-    if (!renderData || typeof renderData !== 'object') {
-      return null;
-    }
-
-    // TEXT-specific styles
-    // fontSize is applied directly (content-driven sizing)
-    // color is applied directly
-    // fontFamily is applied directly (defaults to 'nzxt-extrabold' if missing)
-    // fontWeight is set to 800 (extrabold) to match @font-face definition
-    // fontStyle is set to normal (only style available)
-    // Bounding box is render-computed (not persisted)
-    const textStyle: CSSStyleProperties = {
-      fontSize: `${renderData.fontSize}px`,
-      color: renderData.color,
-      fontFamily: renderData.fontFamily || 'nzxt-extrabold',
-      fontWeight: 800, // extrabold weight (matches @font-face definition)
-      fontStyle: 'normal', // only style available
-      whiteSpace: 'nowrap', // Single-line only (no wrapping in FAZ-5.B1)
-      userSelect: 'none',
-      pointerEvents: 'none', // No interaction in FAZ-5.D1.A
-    };
-
-    // Outline (stroke) rendering
-    // Only apply outline if outlineWidth > 0 and outlineColor is set
-    if (renderData.outlineWidth && renderData.outlineWidth > 0 && renderData.outlineColor) {
-      textStyle.WebkitTextStroke = `${renderData.outlineWidth}px ${renderData.outlineColor}`;
-      textStyle.WebkitTextStrokeWidth = `${renderData.outlineWidth}px`;
-      textStyle.WebkitTextStrokeColor = renderData.outlineColor;
-    }
-
-    return {
-      ...positionStyle,
-      ...textStyle,
-    };
-  } else if (element.elementType === 'shape') {
-    const renderData = element.renderData as ShapeElementRenderData;
-    if (!renderData || typeof renderData !== 'object') {
-      return null;
-    }
-
-    // FAZ-5.D1.A: SHAPE-specific styles
-    // width/height are applied directly (box-driven sizing)
-    // radius, fillColor, borderColor are applied directly
-    const shapeStyle: CSSStyleProperties = {
-      width: `${renderData.width}px`,
-      height: `${renderData.height}px`,
-      borderRadius: `${renderData.radius}px`,
-      backgroundColor: renderData.fillColor,
-      border: `1px solid ${renderData.borderColor}`,
-      boxSizing: 'border-box',
-      userSelect: 'none',
-      pointerEvents: 'none', // No interaction in FAZ-5.D1.A
-    };
-
-    return {
-      ...positionStyle,
-      ...shapeStyle,
-    };
+  const contract = getElementContract(element.elementType);
+  if (!contract) {
+    return null;
   }
 
-  // Unknown element type
-  return null;
+  return contract.render(element, viewport);
 }

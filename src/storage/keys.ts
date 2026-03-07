@@ -1,12 +1,12 @@
 // Storage key constants and management
 
 /**
- * Storage keys for NZXT-ESC-V2.
- * All keys use v2 namespace prefix.
+ * Storage keys for NZXT-ESC-DEV.
+ * All keys use dev namespace prefix.
  */
 export const STORAGE_KEYS = {
-  ACTIVE_PRESET_ID: 'nzxt-esc-v2:activePresetId',
-  PRESETS: 'nzxt-esc-v2:presets',
-  PRESET_ORDER: 'nzxt-esc-v2:presetOrder',
-  LANGUAGE: 'nzxt-esc-v2:language',
+  ACTIVE_PRESET_ID: 'nzxt-esc-dev:activePresetId',
+  PRESETS: 'nzxt-esc-dev:presets',
+  PRESET_ORDER: 'nzxt-esc-dev:presetOrder',
+  LANGUAGE: 'nzxt-esc-dev:language',
 } as const;

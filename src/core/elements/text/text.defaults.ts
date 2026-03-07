@@ -4,8 +4,8 @@
 // TEXT uses content-driven sizing (fontSize), not box-driven sizing (width/height).
 
 import type { TextElementConfig, TextElementConfigComplete } from './text.types';
-import type { BaseElementTransform } from '../base/element.transform.types';
 import { normalizeBaseTransform } from '../../overlay/overlay.defaults';
+import { round } from '../../utils/math';
 
 /**
  * Default TEXT element configuration.
@@ -61,7 +61,7 @@ export function normalizeTextElementConfig(
 
   const fontSize =
     typeof config.fontSize === 'number' && Number.isFinite(config.fontSize) && config.fontSize > 0
-      ? Math.max(1, Math.min(200, config.fontSize))
+      ? round(Math.max(1, Math.min(200, config.fontSize)), 2)
       : DEFAULT_TEXT_ELEMENT_CONFIG.fontSize;
 
   // fontFamily: default 'nzxt-extrabold' if missing/invalid

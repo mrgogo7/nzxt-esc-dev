@@ -7,8 +7,10 @@
 import type { Preset } from '../../../core/preset/preset.types';
 import type { OverlayConfig, OverlayElement } from '../../../core/overlay/overlay.types';
 import type { TextElementConfigComplete } from '../../../core/elements/text/text.types';
+import type { ShapeElementConfigComplete } from '../../../core/elements/shape/shape.types';
 import { normalizeBaseTransform } from '../../../core/overlay/overlay.defaults';
 import { normalizeTextElementConfig } from '../../../core/elements/text/text.defaults';
+import { normalizeShapeElementConfig } from '../../../core/elements/shape/shape.defaults';
 
 /**
  * Updates a TEXT element's transform (position, rotation).
@@ -42,26 +44,89 @@ export function updateOverlayElementTransform(
   }
 
   const element = preset.overlay.elements[elementIndex];
-  if (element.elementType !== 'text') {
-    return null;
-  }
-
-  const textElement = element as TextElementConfigComplete;
 
   // Calculate new transform (immutable)
   const newTransform = {
-    x: textElement.transform.x + deltaX,
-    y: textElement.transform.y + deltaY,
-    rotateDeg: textElement.transform.rotateDeg + deltaRotateDeg,
+    x: element.transform.x + deltaX,
+    y: element.transform.y + deltaY,
+    rotateDeg: element.transform.rotateDeg + deltaRotateDeg,
   };
 
   // Normalize transform (clamps to valid ranges)
   const normalizedTransform = normalizeBaseTransform(newTransform);
 
   // Create new element (immutable)
-  const updatedElement: TextElementConfigComplete = {
-    ...textElement,
+  const updatedElement: OverlayElement = {
+    ...element,
     transform: normalizedTransform,
+  } as OverlayElement;
+
+  // Create new elements array (immutable)
+  const updatedElements: OverlayElement[] = [
+    ...preset.overlay.elements.slice(0, elementIndex),
+    updatedElement,
+    ...preset.overlay.elements.slice(elementIndex + 1),
+  ];
+
+  // Create new overlay (immutable)
+  const updatedOverlay: OverlayConfig = {
+    ...preset.overlay,
+    elements: updatedElements,
+  };
+
+  // Create new preset (immutable)
+  return {
+    ...preset,
+    overlay: updatedOverlay,
+  };
+}
+
+/**
+ * Updates a SHAPE element's width/height (box sizing).
+ *
+ * @param preset - Current preset
+ * @param elementId - Element ID to update
+ * @param deltaX - Width delta (pixels)
+ * @param deltaY - Height delta (pixels)
+ * @returns Updated preset or null if element not found
+ */
+export function updateOverlayElementResize(
+  preset: Preset,
+  elementId: string,
+  deltaX: number,
+  deltaY: number
+): Preset | null {
+  if (!preset.overlay || !preset.overlay.enabled) {
+    return null;
+  }
+
+  const elementIndex = preset.overlay.elements.findIndex((el) => el.id === elementId);
+  if (elementIndex === -1) {
+    return null;
+  }
+
+  const element = preset.overlay.elements[elementIndex];
+  if (element.elementType !== 'shape') {
+    return null;
+  }
+
+  const shapeElement = element as ShapeElementConfigComplete;
+
+  // Calculate new size (immutable)
+  const newWidth = shapeElement.config.width + deltaX;
+  const newHeight = shapeElement.config.height + deltaY;
+
+  // Normalize config (clamps to valid ranges)
+  const normalizedConfig = normalizeShapeElementConfig({
+    ...shapeElement.config,
+    width: newWidth,
+    height: newHeight,
+  });
+
+  // Create new element (immutable)
+  const updatedElement: ShapeElementConfigComplete = {
+    ...shapeElement,
+    config: normalizedConfig,
   };
 
   // Create new elements array (immutable)

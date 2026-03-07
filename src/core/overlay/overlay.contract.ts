@@ -11,13 +11,12 @@ import type {
   OverlayRenderModel,
   OverlayElementRenderModel,
 } from './overlay.types';
-import type { BaseElementTransform } from '../elements/base/element.transform.types';
 import type { TextElementConfigComplete } from '../elements/text/text.types';
 import type { ShapeElementConfigComplete } from '../elements/shape/shape.types';
 import { normalizeOverlayConfig } from './overlay.defaults';
 import { isValidOverlayConfigShape, isValidBaseTransformShape } from './overlay.validate';
-import { textElementContract } from '../elements/text/text.contract';
-import { shapeElementContract } from '../elements/shape/shape.contract';
+import { textElementContract } from '../elements/text/text.contract.tsx';
+import { shapeElementContract } from '../elements/shape/shape.contract.tsx';
 
 /**
  * Overlay contract interface.
@@ -174,7 +173,8 @@ export const overlayContract: OverlayContract = {
         }
       } else {
         // Unknown element type: skip (permissive)
-        console.warn(`Unknown overlay element type: ${element.elementType}, skipping`);
+        const elementType = (element as any).elementType;
+        console.warn(`Unknown overlay element type: ${elementType}, skipping`);
       }
     }
 

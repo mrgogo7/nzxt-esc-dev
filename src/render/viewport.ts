@@ -12,11 +12,11 @@ export interface ViewportDimensions {
 }
 
 /**
- * Default viewport dimensions (640x640 circular LCD).
+ * Default viewport dimensions (650x650 circular LCD).
  */
 export const DEFAULT_VIEWPORT: ViewportDimensions = {
-  width: 640,
-  height: 640,
+  width: 650,
+  height: 650,
   isCircular: true,
 };
 

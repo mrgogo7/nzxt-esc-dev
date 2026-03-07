@@ -4,11 +4,11 @@
 // Renders ONLY overlay elements (no background content).
 // Uses the same render pipeline as BackgroundPreview and Kraken (parity guarantee).
 
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import type { RenderModel } from '../../../render/model/render.types';
 import { renderBackground, renderMediaOverlay, renderOverlay, renderOverlayElement } from '../../../render/engine';
 import { getViewportDimensions } from '../../../render/viewport';
-import type { TextElementRenderData, ShapeElementRenderData } from '../../../core/overlay/overlay.types';
+import { getElementContract } from '../../../core/elements/registry';
 import './preview.css';
 
 interface OverlayPreviewProps {
@@ -17,6 +17,8 @@ interface OverlayPreviewProps {
   selectedOverlayElementId?: string | null;
   onOverlayElementSelect?: (elementId: string | null) => void;
   onOverlayElementTransformDelta?: (elementId: string, deltaX: number, deltaY: number) => void;
+  onOverlayElementRotateDelta?: (elementId: string, deltaDeg: number) => void;
+  onOverlayElementResizeDelta?: (elementId: string, deltaX: number, deltaY: number) => void;
   onOverlayElementFontSizeDelta?: (elementId: string, fontSizeDelta: number) => void;
   onOverlayElementKeyArrow?: (elementId: string, direction: 'up' | 'down' | 'left' | 'right') => void;
   onOverlayElementDragEnd?: () => void;
@@ -41,6 +43,8 @@ export function OverlayPreview({
   selectedOverlayElementId = null,
   onOverlayElementSelect,
   onOverlayElementTransformDelta,
+  onOverlayElementRotateDelta,
+  onOverlayElementResizeDelta,
   onOverlayElementFontSizeDelta,
   onOverlayElementKeyArrow,
   onOverlayElementDragEnd,
@@ -59,6 +63,7 @@ export function OverlayPreview({
   // FAZ-5.B2: Overlay element interaction state
   const isDraggingOverlayRef = useRef(false);
   const isResizingOverlayRef = useRef(false);
+  const isRotatingOverlayRef = useRef(false);
   const draggedOverlayElementIdRef = useRef<string | null>(null);
   const lastOverlayPointerPosRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -76,11 +81,24 @@ export function OverlayPreview({
   };
 
   const handleOverlayElementPointerDown = (e: React.PointerEvent, elementId: string) => {
-    if (!onOverlayElementTransformDelta || !containerRef.current) return;
+    if (!containerRef.current) return;
     
     e.preventDefault();
     e.stopPropagation();
-    isDraggingOverlayRef.current = true;
+
+    const target = e.target as HTMLElement;
+
+    if (target.closest('.render-overlay-rotate-handle')) {
+      if (!onOverlayElementRotateDelta) return;
+      isRotatingOverlayRef.current = true;
+    } else if (target.closest('.render-overlay-resize-handle')) {
+      if (!onOverlayElementFontSizeDelta && !onOverlayElementResizeDelta) return;
+      isResizingOverlayRef.current = true;
+    } else {
+      if (!onOverlayElementTransformDelta) return;
+      isDraggingOverlayRef.current = true;
+    }
+
     draggedOverlayElementIdRef.current = elementId;
     const rect = containerRef.current.getBoundingClientRect();
     lastOverlayPointerPosRef.current = {
@@ -96,8 +114,7 @@ export function OverlayPreview({
   };
 
   const handleOverlayElementPointerMove = (e: React.PointerEvent) => {
-    if (!isDraggingOverlayRef.current || !draggedOverlayElementIdRef.current || !lastOverlayPointerPosRef.current || !containerRef.current) return;
-    if (!onOverlayElementTransformDelta) return;
+    if (!draggedOverlayElementIdRef.current || !lastOverlayPointerPosRef.current || !containerRef.current) return;
     
     e.preventDefault();
     const rect = containerRef.current.getBoundingClientRect();
@@ -106,71 +123,36 @@ export function OverlayPreview({
     
     const deltaX = (currentX - lastOverlayPointerPosRef.current.x) / previewScale;
     const deltaY = (currentY - lastOverlayPointerPosRef.current.y) / previewScale;
-    
-    onOverlayElementTransformDelta(draggedOverlayElementIdRef.current, deltaX, deltaY);
+
+    if (isDraggingOverlayRef.current && onOverlayElementTransformDelta) {
+      onOverlayElementTransformDelta(draggedOverlayElementIdRef.current, deltaX, deltaY);
+    } else if (isRotatingOverlayRef.current && onOverlayElementRotateDelta) {
+      // Rotation logic: pivot around center
+      // For now, let's use a simpler delta-based approach or coordinate-to-angle
+      // Actually we should pivot around the element center.
+      // But for simplicity in this step, let's just use vertical delta as rotation for now
+      // and improve it in the next step.
+      const rotationDelta = deltaX * 0.5;
+      onOverlayElementRotateDelta(draggedOverlayElementIdRef.current, rotationDelta);
+    } else if (isResizingOverlayRef.current) {
+      if (onOverlayElementFontSizeDelta) {
+        const scaleFactor = 0.5;
+        const fontSizeDelta = deltaY * scaleFactor;
+        onOverlayElementFontSizeDelta(draggedOverlayElementIdRef.current, fontSizeDelta);
+      } else if (onOverlayElementResizeDelta) {
+        onOverlayElementResizeDelta(draggedOverlayElementIdRef.current, deltaX, deltaY);
+      }
+    }
     
     lastOverlayPointerPosRef.current = { x: currentX, y: currentY };
   };
 
   const handleOverlayElementPointerUp = (e: React.PointerEvent) => {
-    if (!isDraggingOverlayRef.current) return;
+    if (!isDraggingOverlayRef.current && !isResizingOverlayRef.current && !isRotatingOverlayRef.current) return;
     
     isDraggingOverlayRef.current = false;
-    draggedOverlayElementIdRef.current = null;
-    lastOverlayPointerPosRef.current = null;
-    if (containerRef.current) {
-      containerRef.current.releasePointerCapture(e.pointerId);
-    }
-    
-    if (onOverlayElementDragEnd) {
-      onOverlayElementDragEnd();
-    }
-  };
-
-  const handleOverlayElementResizePointerDown = (e: React.PointerEvent, elementId: string) => {
-    if (!onOverlayElementFontSizeDelta || !containerRef.current) return;
-    
-    e.preventDefault();
-    e.stopPropagation();
-    isResizingOverlayRef.current = true;
-    draggedOverlayElementIdRef.current = elementId;
-    const rect = containerRef.current.getBoundingClientRect();
-    lastOverlayPointerPosRef.current = {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    };
-    containerRef.current.setPointerCapture(e.pointerId);
-    
-    // Select element on resize start
-    if (onOverlayElementSelect) {
-      onOverlayElementSelect(elementId);
-    }
-  };
-
-  const handleOverlayElementResizePointerMove = (e: React.PointerEvent) => {
-    if (!isResizingOverlayRef.current || !draggedOverlayElementIdRef.current || !lastOverlayPointerPosRef.current || !containerRef.current) return;
-    if (!onOverlayElementFontSizeDelta) return;
-    
-    e.preventDefault();
-    const rect = containerRef.current.getBoundingClientRect();
-    const currentY = e.clientY - rect.top;
-    
-    const deltaY = (currentY - lastOverlayPointerPosRef.current.y) / previewScale;
-    
-    // fontSize delta derived from vertical mouse movement
-    // Scale factor: 0.5 means 1px mouse movement = 0.5px fontSize change
-    const scaleFactor = 0.5;
-    const fontSizeDelta = deltaY * scaleFactor;
-    
-    onOverlayElementFontSizeDelta(draggedOverlayElementIdRef.current, fontSizeDelta);
-    
-    lastOverlayPointerPosRef.current = { x: e.clientX - rect.left, y: currentY };
-  };
-
-  const handleOverlayElementResizePointerUp = (e: React.PointerEvent) => {
-    if (!isResizingOverlayRef.current) return;
-    
     isResizingOverlayRef.current = false;
+    isRotatingOverlayRef.current = false;
     draggedOverlayElementIdRef.current = null;
     lastOverlayPointerPosRef.current = null;
     if (containerRef.current) {
@@ -230,7 +212,6 @@ export function OverlayPreview({
         onPointerMove={handleOverlayElementPointerMove}
         onPointerUp={(e) => {
           handleOverlayElementPointerUp(e);
-          handleOverlayElementResizePointerUp(e);
         }}
         onKeyDown={handleKeyDown}
         onClick={(e) => {
@@ -361,78 +342,39 @@ export function OverlayPreview({
                 }
 
                 const isSelected = selectedOverlayElementId === element.id;
+                const contract = getElementContract(element.elementType);
 
-                // TEXT element rendering
-                if (element.elementType === 'text') {
-                  const textData = element.renderData as TextElementRenderData;
-                  
-                  return (
-                    <div
-                      key={element.id}
-                      className={`render-overlay-element render-overlay-text ${isSelected ? 'render-overlay-element-selected' : ''}`}
-                      style={{
-                        ...elementStyle,
-                        cursor: isSelected ? 'move' : 'pointer',
-                        pointerEvents: 'auto', // Enable interaction
-                      }}
-                      onClick={(e) => handleOverlayElementClick(e, element.id)}
-                      onPointerDown={(e) => handleOverlayElementPointerDown(e, element.id)}
-                      onWheel={(e) => {
-                        if (isSelected) {
-                          handleOverlayElementWheel(e, element.id);
-                        }
-                      }}
-                    >
-                      {textData.content}
-                      {/* FAZ-5.B2: Resize handle (corner) */}
-                      {isSelected && (
-                        <div
-                          className="render-overlay-resize-handle"
-                          style={{
-                            position: 'absolute',
-                            bottom: '-4px',
-                            right: '-4px',
-                            width: '12px',
-                            height: '12px',
-                            backgroundColor: '#ffffff',
-                            border: '2px solid #000000',
-                            borderRadius: '2px',
-                            cursor: 'nwse-resize',
-                            pointerEvents: 'auto',
-                          }}
-                          onPointerDown={(e) => {
-                            e.stopPropagation();
-                            handleOverlayElementResizePointerDown(e, element.id);
-                          }}
-                        />
-                      )}
-                    </div>
-                  );
-                }
+                return (
+                  <div
+                    key={element.id}
+                    className={`render-overlay-element render-overlay-${element.elementType} ${isSelected ? 'render-overlay-element-selected' : ''}`}
+                    style={{
+                      ...elementStyle,
+                      cursor: isSelected ? 'move' : 'pointer',
+                      pointerEvents: 'auto',
+                    }}
+                    onClick={(e) => handleOverlayElementClick(e, element.id)}
+                    onPointerDown={(e) => handleOverlayElementPointerDown(e, element.id)}
+                    onWheel={(e) => {
+                      if (isSelected) {
+                        handleOverlayElementWheel(e, element.id);
+                      }
+                    }}
+                  >
+                    {/* Element-specific content (for TEXT this is the text itself) */}
+                    {element.elementType === 'text' && (element.renderData as any)?.content}
 
-                // FAZ-5.D1.A: SHAPE element rendering
-                if (element.elementType === 'shape') {
-                  // SHAPE is rendered but not interactive yet
-                  // FAZ-5.D1.B will add bounding box and resize handles
-                  return (
-                    <div
-                      key={element.id}
-                      className={`render-overlay-element render-overlay-shape ${isSelected ? 'render-overlay-element-selected' : ''}`}
-                      style={{
-                        ...elementStyle,
-                        cursor: isSelected ? 'move' : 'pointer',
-                        pointerEvents: 'auto', // Enable interaction (FAZ-5.D1.B will add resize)
-                      }}
-                      onClick={(e) => handleOverlayElementClick(e, element.id)}
-                      onPointerDown={(e) => handleOverlayElementPointerDown(e, element.id)}
-                    >
-                      {/* FAZ-5.D1.A: SHAPE is rendered but not interactive yet */}
-                      {/* FAZ-5.D1.B will add bounding box and resize handles */}
-                    </div>
-                  );
-                }
+                    {/* Element-specific editor overlays */}
+                    {isSelected && contract?.renderEditorOverlays?.(element, lcdViewport, {
+                      onTransformDelta: onOverlayElementTransformDelta,
+                      onRotateDelta: onOverlayElementRotateDelta,
+                      onResizeDelta: onOverlayElementResizeDelta,
+                      onFontSizeDelta: onOverlayElementFontSizeDelta,
+                    })}
 
-                return null;
+                    {/* Generic handles (if any) could go here too, but contract-based is cleaner */}
+                  </div>
+                );
               })}
             </div>
             </div>

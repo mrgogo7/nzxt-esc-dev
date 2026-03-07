@@ -1,6 +1,6 @@
 // IndexedDB storage implementation
 
-const DB_NAME = 'nzxt-esc-v2';
+const DB_NAME = 'nzxt-esc-dev';
 const DB_VERSION = 1;
 const STORE_NAME = 'localMedia';
 

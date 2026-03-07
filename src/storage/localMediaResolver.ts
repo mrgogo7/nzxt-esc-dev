@@ -104,7 +104,7 @@ export class LocalMediaResolver {
    * Safe to call multiple times (idempotent).
    */
   revokeAll(): void {
-    for (const [mediaId, objectURL] of this.cache.entries()) {
+    for (const objectURL of this.cache.values()) {
       URL.revokeObjectURL(objectURL);
     }
     this.cache.clear();

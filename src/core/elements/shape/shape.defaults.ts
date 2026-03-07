@@ -4,8 +4,8 @@
 // SHAPE uses box-driven sizing (width/height), not content-driven sizing.
 
 import type { ShapeElementConfig, ShapeElementConfigComplete } from './shape.types';
-import type { BaseElementTransform } from '../base/element.transform.types';
 import { normalizeBaseTransform } from '../../overlay/overlay.defaults';
+import { round } from '../../utils/math';
 
 /**
  * Default SHAPE element configuration.
@@ -52,17 +52,17 @@ export function normalizeShapeElementConfig(
 
   const width =
     typeof config.width === 'number' && Number.isFinite(config.width) && config.width > 0
-      ? Math.max(1, Math.min(1000, config.width))
+      ? round(Math.max(1, Math.min(1000, config.width)), 2)
       : DEFAULT_SHAPE_ELEMENT_CONFIG.width;
 
   const height =
     typeof config.height === 'number' && Number.isFinite(config.height) && config.height > 0
-      ? Math.max(1, Math.min(1000, config.height))
+      ? round(Math.max(1, Math.min(1000, config.height)), 2)
       : DEFAULT_SHAPE_ELEMENT_CONFIG.height;
 
   const radius =
     typeof config.radius === 'number' && Number.isFinite(config.radius) && config.radius >= 0
-      ? Math.max(0, Math.min(100, config.radius))
+      ? round(Math.max(0, Math.min(100, config.radius)), 2)
       : DEFAULT_SHAPE_ELEMENT_CONFIG.radius;
 
   const fillColor =
